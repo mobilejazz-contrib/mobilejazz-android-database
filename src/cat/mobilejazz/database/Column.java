@@ -1,9 +1,9 @@
 package cat.mobilejazz.database;
 
-import cat.mobilejazz.utilities.debug.TreeObject;
 import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.StringTemplate;
 import cat.mobilejazz.utilities.format.SymbolTable;
+import cat.mobilejazz.utilities.format.TreeObject;
 
 public class Column implements TreeObject {
 

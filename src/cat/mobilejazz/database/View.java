@@ -6,8 +6,8 @@ import java.util.List;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
 import cat.mobilejazz.utilities.debug.Debug;
-import cat.mobilejazz.utilities.debug.TreeObject;
 import cat.mobilejazz.utilities.format.StringFormatter;
+import cat.mobilejazz.utilities.format.TreeObject;
 
 public class View implements TreeObject {
 
