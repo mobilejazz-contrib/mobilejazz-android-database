@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.text.TextUtils;
 import cat.mobilejazz.utilities.debug.Debug;

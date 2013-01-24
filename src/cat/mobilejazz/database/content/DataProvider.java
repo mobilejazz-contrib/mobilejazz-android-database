@@ -503,6 +503,13 @@ public abstract class DataProvider extends ContentProvider {
 	// }
 	// }
 
+	protected void insertSingleChange(SQLiteDatabase db, int action, long id, ResolvedUri resolvedUri,
+			ContentValues values) {
+		ContentValues changes = getChanges(action, resolvedUri.table, id, values,
+				resolvedUri.getString(QUERY_KEY_CHANGE_VALUE), resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA));
+		db.insert(Changes.TABLE_NAME, null, changes);
+	}
+
 	protected void insertChanges(int action, SQLiteDatabase db, Uri uri, ResolvedUri resolvedUri, String selection,
 			String[] selectionArgs, ContentValues values) {
 		if (resolvedUri.queryParams.getBoolean(QUERY_KEY_RECORD_CHANGES)
@@ -515,23 +522,13 @@ public abstract class DataProvider extends ContentProvider {
 			}
 
 			if (resolvedUri.id != null) {
-				db.insert(
-						Changes.TABLE_NAME,
-						null,
-						getChanges(action, resolvedUri.table, resolvedUri.id, values,
-								resolvedUri.getString(QUERY_KEY_CHANGE_VALUE),
-								resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA)));
+				insertSingleChange(db, action, resolvedUri.id, resolvedUri, values);
 			} else {
 				Cursor cursor = query(uri, new String[] { BaseColumns._ID }, selection, selectionArgs, null);
 				cursor.moveToFirst();
 				while (!cursor.isAfterLast()) {
 					long id = cursor.getLong(0);
-					db.insert(
-							Changes.TABLE_NAME,
-							null,
-							getChanges(action, resolvedUri.table, id, values,
-									resolvedUri.getString(QUERY_KEY_CHANGE_VALUE),
-									resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA)));
+					insertSingleChange(db, action, id, resolvedUri, values);
 					cursor.moveToNext();
 				}
 			}

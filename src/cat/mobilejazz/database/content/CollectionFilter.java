@@ -54,9 +54,7 @@ public class CollectionFilter implements Parcelable {
 	}
 
 	/**
-	 * Gets the table that is affected by this filter. Please refer to
-	 * {@link DatabaseContract} for a list of possible values (e.g.
-	 * {@code DatabaseContract.Tasks.TABLE_NAME}).
+	 * Gets the table that is affected by this filter.
 	 * 
 	 * @return The table of this filter.
 	 */
