@@ -523,6 +523,8 @@ public abstract class DataProvider extends ContentProvider {
 
 			if (resolvedUri.id != null) {
 				insertSingleChange(db, action, resolvedUri.id, resolvedUri, values);
+			} else if (action == Changes.ACTION_REMOVE) {
+				insertSingleChange(db, action, 0, resolvedUri, values);
 			} else {
 				Cursor cursor = query(uri, new String[] { BaseColumns._ID }, selection, selectionArgs, null);
 				cursor.moveToFirst();
