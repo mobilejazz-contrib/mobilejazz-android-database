@@ -120,5 +120,13 @@ public final class SQLUtils {
 		}
 		return result;
 	}
+	
+	public static String getStringOrNull(Cursor cursor, int columnIndex) {
+		if (cursor.isNull(columnIndex)) {
+			return null;
+		} else {
+			return cursor.getString(columnIndex);
+		}
+	}
 
 }
