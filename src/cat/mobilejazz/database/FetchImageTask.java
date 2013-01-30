@@ -116,7 +116,7 @@ public class FetchImageTask<V extends View> extends AsyncTask<Void, Void, Bitmap
 			if (mDefaultUrl != null && !mImageUrl.equals(mDefaultUrl)) {
 				// default url:
 				fetchImage(mDefaultUrl, mDefaultUrl, mView, mImageSetter);
-			} else {
+			} else if (mDefaultDrawable != 0){
 				// default res id:
 				mImageSetter.onSetImage(mView, BitmapFactory.decodeResource(mView.getResources(), mDefaultDrawable));
 			}
