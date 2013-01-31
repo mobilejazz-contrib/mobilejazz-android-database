@@ -268,7 +268,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	private static final int ROW_URI = 0;
 	private static final int TABLE_URI = 1;
-	
+
 	private Uri getUri(String user, String table) {
 		return new Uri.Builder().scheme("content").authority(getAuthority()).appendPath(user).appendPath(table).build();
 	}
@@ -681,7 +681,8 @@ public abstract class DataProvider extends ContentProvider {
 			db.beginTransaction();
 			Debug.warning(String.format("Deleting: %s, %s, %s", filter.getTable(), filter.getSelection(),
 					Arrays.toString(filter.getSelectionArgs())));
-			db.delete(filter.getTable(), filter.getSelection(), filter.getSelectionArgs());
+			int deletedRows = db.delete(filter.getTable(), filter.getSelection(), filter.getSelectionArgs());
+			Debug.warning(String.format("Deleted %d rows", deletedRows));
 			processor.performOperations();
 			db.setTransactionSuccessful();
 		} finally {
