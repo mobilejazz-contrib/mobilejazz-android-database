@@ -3,6 +3,7 @@ package cat.mobilejazz.database.query;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import android.content.ContentProvider;
 import android.content.ContentProviderClient;
@@ -137,6 +138,8 @@ public class Select {
 
 	}
 
+	private static final Pattern PATTERN = Pattern.compile("\\d+");
+	
 	private Uri mTable;
 	private String[] mProjection;
 	private String mSelection;
@@ -157,6 +160,16 @@ public class Select {
 	
 	public Uri getUri() {
 		return mTable;
+	}
+	
+	public String getTable() {
+		String last = mTable.getLastPathSegment();
+		if (PATTERN.matcher(last).matches()) {
+			// last path segment is the id. But we want the table:
+			return mTable.getPathSegments().get(mTable.getPathSegments().size() - 2);
+		} else {
+			return last;
+		}
 	}
 
 	public String[] getProjection() {

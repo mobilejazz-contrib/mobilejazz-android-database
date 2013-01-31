@@ -4,6 +4,7 @@ import java.util.Arrays;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.ObjectUtils;
 
 /**
@@ -51,6 +52,10 @@ public class CollectionFilter implements Parcelable {
 		mSelection = selection;
 		mSelectionArgs = selectionArgs;
 		mApiPaths = apiPaths;
+	}
+
+	public CollectionFilter(Select select, String[] apiPaths) {
+		this(select.getTable(), select.getSelection(), select.getSelectionArgs(), apiPaths);
 	}
 
 	/**

@@ -268,7 +268,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	private static final int ROW_URI = 0;
 	private static final int TABLE_URI = 1;
-
+	
 	private Uri getUri(String user, String table) {
 		return new Uri.Builder().scheme("content").authority(getAuthority()).appendPath(user).appendPath(table).build();
 	}
