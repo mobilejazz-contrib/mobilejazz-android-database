@@ -53,7 +53,10 @@ public class Database implements TreeObject {
 				tables.get(d.getTable()).addReferencedBy(v);
 			} else {
 				// dependency is view:
-				propagateDependencies(getView(dependencyName));
+				View depView = getView(dependencyName);
+				if (depView != null) {
+					propagateDependencies(depView);
+				}
 			}
 		}
 	}

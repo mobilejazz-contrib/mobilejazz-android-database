@@ -34,7 +34,7 @@ public class View implements TreeObject {
 		public String getAlias() {
 			return mAlias;
 		}
-		
+
 		private StringBuilder aggregate(StringBuilder s, String name) {
 			if (!TextUtils.isEmpty(mAggregation)) {
 				s.append(mAggregation).append('(').append(name).append(')');
@@ -69,7 +69,7 @@ public class View implements TreeObject {
 		public Dependency(String table, String columnLeft, String columnRight) {
 			this(table, null, columnLeft, columnRight);
 		}
-		
+
 		public Dependency(String table, String tableAlias, String columnLeft, String columnRight) {
 			this(table, tableAlias, columnLeft, columnRight, "LEFT JOIN");
 		}
@@ -118,7 +118,7 @@ public class View implements TreeObject {
 	public View(String name, List<ViewColumn> columns, List<Dependency> dependencies) {
 		this(name, columns, dependencies, "");
 	}
-	
+
 	public View(String name, List<ViewColumn> columns, List<Dependency> dependencies, String selectSuffix) {
 		mName = name;
 		mColumns = columns;
@@ -126,11 +126,13 @@ public class View implements TreeObject {
 		mSelectSuffix = selectSuffix;
 		update();
 	}
-	
+
 	/**
 	 * Creates a view directly from a raw SQL statement.
 	 * 
-	 * @param sqlStatement A {@link String} representing a valid sql statement that creates this view.
+	 * @param sqlStatement
+	 *            A {@link String} representing a valid sql statement that
+	 *            creates this view.
 	 */
 	public View(String name, String sqlStatement, List<Dependency> dependencies) {
 		mName = name;
