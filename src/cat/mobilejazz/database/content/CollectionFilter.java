@@ -129,8 +129,8 @@ public class CollectionFilter implements Parcelable {
 	}
 
 	private CollectionFilter(Parcel in) {
-		selection = in.readParcelable(null);
-		in.readStringArray(apiPaths);
+		selection = in.readParcelable(Select.class.getClassLoader());
+		apiPaths = in.createStringArray();
 		table = selection.getTable();
 	}
 

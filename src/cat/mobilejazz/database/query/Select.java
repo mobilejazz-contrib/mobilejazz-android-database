@@ -141,7 +141,7 @@ public class Select implements Parcelable {
 	}
 
 	private static final Pattern PATTERN = Pattern.compile("\\d+");
-	
+
 	private Uri table;
 	private String[] projection;
 	private String selection;
@@ -159,11 +159,11 @@ public class Select implements Parcelable {
 		this.selectionArgs = selectionArgs;
 		this.sortOrder = sortOrder;
 	}
-	
+
 	public Uri getUri() {
 		return table;
 	}
-	
+
 	public String getTable() {
 		String last = table.getLastPathSegment();
 		if (PATTERN.matcher(last).matches()) {
@@ -197,7 +197,7 @@ public class Select implements Parcelable {
 	public CursorLoader newCursorLoader(Context context) {
 		return new CursorLoader(context, table, projection, selection, selectionArgs, sortOrder);
 	}
-	
+
 	public int delete(ContentResolver provider) {
 		return provider.delete(table, selection, selectionArgs);
 	}
@@ -208,7 +208,7 @@ public class Select implements Parcelable {
 
 	public Cursor query(ContentResolver provider) {
 		return provider.query(table, projection, selection, selectionArgs, sortOrder);
-	} 
+	}
 
 	public int delete(ContentProviderClient provider) throws RemoteException {
 		return provider.delete(table, selection, selectionArgs);
@@ -221,7 +221,7 @@ public class Select implements Parcelable {
 	public Cursor query(ContentProviderClient provider) throws RemoteException {
 		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	}
-	
+
 	public int delete(ContentProvider provider) {
 		return provider.delete(table, selection, selectionArgs);
 	}
@@ -262,12 +262,12 @@ public class Select implements Parcelable {
 		dest.writeStringArray(selectionArgs);
 		dest.writeString(sortOrder);
 	}
-	
+
 	private Select(Parcel in) {
-		table = in.readParcelable(null);
-		in.readStringArray(projection);
+		table = in.readParcelable(Uri.class.getClassLoader());
+		projection = in.createStringArray();
 		selection = in.readString();
-		in.readStringArray(selectionArgs);
+		selectionArgs = in.createStringArray();
 		sortOrder = in.readString();
 	}
 
@@ -280,5 +280,5 @@ public class Select implements Parcelable {
 			return new Select[size];
 		}
 	};
-	
+
 }
