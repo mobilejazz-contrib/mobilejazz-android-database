@@ -248,6 +248,21 @@ public class Select implements Parcelable {
 		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	}
 
+	public String toSql() {
+		StringBuilder s = new StringBuilder();
+		s.append("SELECT ");
+		if (projection == null) {
+			s.append("*");
+		} else {
+			StringFormatter.printIterable(s, projection);
+		}
+		s.append(" FROM ").append(getTable()).append(" WHERE ").append(selection);
+		if (sortOrder != null) {
+			s.append(" SORTED BY ").append(sortOrder);
+		}
+		return s.toString();
+	}
+
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();
@@ -261,6 +276,9 @@ public class Select implements Parcelable {
 		if (sortOrder != null) {
 			s.append(" SORTED BY ").append(sortOrder);
 		}
+		s.append(" [");
+		StringFormatter.printIterable(s, selectionArgs);
+		s.append("]");
 		return s.toString();
 	}
 
