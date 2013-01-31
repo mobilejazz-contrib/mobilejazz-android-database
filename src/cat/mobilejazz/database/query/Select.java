@@ -17,6 +17,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.support.v4.content.CursorLoader;
+import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.content.DataProvider;
 import cat.mobilejazz.utilities.format.StringFormatter;
 
@@ -29,6 +30,10 @@ public class Select implements Parcelable {
 		private List<String> mSelection;
 		private List<String> mSelectionArgs;
 		private String mSortOrder;
+
+		private String valueOf(Object arg) {
+			return SQLUtils.valueOf(arg);
+		}
 
 		public Builder(Uri table) {
 			mTable = table;
@@ -51,7 +56,7 @@ public class Select implements Parcelable {
 
 		public Builder constraintOp(String column, String operator, Object value) {
 			mSelection.add(String.format("%s %s ?", column, operator));
-			mSelectionArgs.add(String.valueOf(value));
+			mSelectionArgs.add(valueOf(value));
 			return this;
 		}
 
@@ -68,6 +73,15 @@ public class Select implements Parcelable {
 			return this;
 		}
 
+		public Builder constraint(String constraint, Object... values) {
+			mSelection.add(String.format("(%s)", constraint));
+			for (Object v : values) {
+				mSelectionArgs.add(valueOf(v));
+			}
+
+			return this;
+		}
+
 		private void selectionConstraintList(String column, String operator, int length) {
 			StringBuilder exp = new StringBuilder();
 			exp.append("(?");
@@ -81,7 +95,7 @@ public class Select implements Parcelable {
 		public <T> Builder constraintIn(String column, T... values) {
 			selectionConstraintList(column, "IN", values.length);
 			for (T v : values) {
-				mSelectionArgs.add(String.valueOf(v));
+				mSelectionArgs.add(valueOf(v));
 			}
 			return this;
 		}
@@ -89,7 +103,7 @@ public class Select implements Parcelable {
 		public <T> Builder constraintNotIn(String column, T... values) {
 			selectionConstraintList(column, "NOT IN", values.length);
 			for (T v : values) {
-				mSelectionArgs.add(String.valueOf(v));
+				mSelectionArgs.add(valueOf(v));
 			}
 			return this;
 		}
@@ -97,7 +111,7 @@ public class Select implements Parcelable {
 		public <T> Builder constraintIn(String column, Collection<T> values) {
 			selectionConstraintList(column, "IN", values.size());
 			for (T v : values) {
-				mSelectionArgs.add(String.valueOf(v));
+				mSelectionArgs.add(valueOf(v));
 			}
 			return this;
 		}
@@ -105,7 +119,7 @@ public class Select implements Parcelable {
 		public <T> Builder constraintNotIn(String column, Collection<T> values) {
 			selectionConstraintList(column, "NOT IN", values.size());
 			for (T v : values) {
-				mSelectionArgs.add(String.valueOf(v));
+				mSelectionArgs.add(valueOf(v));
 			}
 			return this;
 		}
@@ -113,7 +127,7 @@ public class Select implements Parcelable {
 		public Builder constraintIn(String column, long... values) {
 			selectionConstraintList(column, "IN", values.length);
 			for (long v : values) {
-				mSelectionArgs.add(String.valueOf(v));
+				mSelectionArgs.add(valueOf(v));
 			}
 			return this;
 		}
@@ -243,9 +257,10 @@ public class Select implements Parcelable {
 		} else {
 			StringFormatter.printIterable(s, projection);
 		}
-		s.append(" FROM ").append(table).append(" WHERE ").append(selection).append(" SORTED BY ").append(sortOrder);
-		s.append("\nARGS: ");
-		StringFormatter.printIterable(s, selectionArgs);
+		s.append(" FROM ").append(table).append(" WHERE ").append(selection);
+		if (sortOrder != null) {
+			s.append(" SORTED BY ").append(sortOrder);
+		}
 		return s.toString();
 	}
 
