@@ -13,12 +13,14 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.RemoteException;
 import android.support.v4.content.CursorLoader;
 import cat.mobilejazz.database.content.DataProvider;
 import cat.mobilejazz.utilities.format.StringFormatter;
 
-public class Select {
+public class Select implements Parcelable {
 
 	public static class Builder {
 
@@ -140,111 +142,143 @@ public class Select {
 
 	private static final Pattern PATTERN = Pattern.compile("\\d+");
 	
-	private Uri mTable;
-	private String[] mProjection;
-	private String mSelection;
-	private String[] mSelectionArgs;
-	private String mSortOrder;
+	private Uri table;
+	private String[] projection;
+	private String selection;
+	private String[] selectionArgs;
+	private String sortOrder;
 
 	public Select(Uri table) {
 		this(table, null, null, null, null);
 	}
 
 	public Select(Uri table, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-		mTable = table;
-		mProjection = projection;
-		mSelection = selection;
-		mSelectionArgs = selectionArgs;
-		mSortOrder = sortOrder;
+		this.table = table;
+		this.projection = projection;
+		this.selection = selection;
+		this.selectionArgs = selectionArgs;
+		this.sortOrder = sortOrder;
 	}
 	
 	public Uri getUri() {
-		return mTable;
+		return table;
 	}
 	
 	public String getTable() {
-		String last = mTable.getLastPathSegment();
+		String last = table.getLastPathSegment();
 		if (PATTERN.matcher(last).matches()) {
 			// last path segment is the id. But we want the table:
-			return mTable.getPathSegments().get(mTable.getPathSegments().size() - 2);
+			return table.getPathSegments().get(table.getPathSegments().size() - 2);
 		} else {
 			return last;
 		}
 	}
 
 	public String[] getProjection() {
-		return mProjection;
+		return projection;
 	}
 
 	public String getSelection() {
-		return mSelection;
+		return selection;
 	}
 
 	public String[] getSelectionArgs() {
-		return mSelectionArgs;
+		return selectionArgs;
 	}
 
 	public String getSortOrder() {
-		return mSortOrder;
+		return sortOrder;
 	}
 
 	public ContentProviderOperation getContentProviderOperationDelete() {
-		return ContentProviderOperation.newDelete(mTable).withSelection(mSelection, mSelectionArgs).build();
+		return ContentProviderOperation.newDelete(table).withSelection(selection, selectionArgs).build();
 	}
 
 	public CursorLoader newCursorLoader(Context context) {
-		return new CursorLoader(context, mTable, mProjection, mSelection, mSelectionArgs, mSortOrder);
+		return new CursorLoader(context, table, projection, selection, selectionArgs, sortOrder);
 	}
 	
 	public int delete(ContentResolver provider) {
-		return provider.delete(mTable, mSelection, mSelectionArgs);
+		return provider.delete(table, selection, selectionArgs);
 	}
 
 	public int update(ContentResolver provider, ContentValues values) {
-		return provider.update(mTable, values, mSelection, mSelectionArgs);
+		return provider.update(table, values, selection, selectionArgs);
 	}
 
 	public Cursor query(ContentResolver provider) {
-		return provider.query(mTable, mProjection, mSelection, mSelectionArgs, mSortOrder);
+		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	} 
 
 	public int delete(ContentProviderClient provider) throws RemoteException {
-		return provider.delete(mTable, mSelection, mSelectionArgs);
+		return provider.delete(table, selection, selectionArgs);
 	}
 
 	public int update(ContentProviderClient provider, ContentValues values) throws RemoteException {
-		return provider.update(mTable, values, mSelection, mSelectionArgs);
+		return provider.update(table, values, selection, selectionArgs);
 	}
 
 	public Cursor query(ContentProviderClient provider) throws RemoteException {
-		return provider.query(mTable, mProjection, mSelection, mSelectionArgs, mSortOrder);
+		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	}
 	
 	public int delete(ContentProvider provider) {
-		return provider.delete(mTable, mSelection, mSelectionArgs);
+		return provider.delete(table, selection, selectionArgs);
 	}
 
 	public int update(ContentProvider provider, ContentValues values) {
-		return provider.update(mTable, values, mSelection, mSelectionArgs);
+		return provider.update(table, values, selection, selectionArgs);
 	}
 
 	public Cursor query(ContentProvider provider) {
-		return provider.query(mTable, mProjection, mSelection, mSelectionArgs, mSortOrder);
+		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();
 		s.append("SELECT ");
-		if (mProjection == null) {
+		if (projection == null) {
 			s.append("*");
 		} else {
-			StringFormatter.printIterable(s, mProjection);
+			StringFormatter.printIterable(s, projection);
 		}
-		s.append(" FROM ").append(mTable).append(" WHERE ").append(mSelection).append(" SORTED BY ").append(mSortOrder);
+		s.append(" FROM ").append(table).append(" WHERE ").append(selection).append(" SORTED BY ").append(sortOrder);
 		s.append("\nARGS: ");
-		StringFormatter.printIterable(s, mSelectionArgs);
+		StringFormatter.printIterable(s, selectionArgs);
 		return s.toString();
 	}
 
+	@Override
+	public int describeContents() {
+		return 0;
+	}
+
+	@Override
+	public void writeToParcel(Parcel dest, int flags) {
+		dest.writeParcelable(table, flags);
+		dest.writeStringArray(projection);
+		dest.writeString(selection);
+		dest.writeStringArray(selectionArgs);
+		dest.writeString(sortOrder);
+	}
+	
+	private Select(Parcel in) {
+		table = in.readParcelable(null);
+		in.readStringArray(projection);
+		selection = in.readString();
+		in.readStringArray(selectionArgs);
+		sortOrder = in.readString();
+	}
+
+	public static final Parcelable.Creator<Select> CREATOR = new Parcelable.Creator<Select>() {
+		public Select createFromParcel(Parcel in) {
+			return new Select(in);
+		}
+
+		public Select[] newArray(int size) {
+			return new Select[size];
+		}
+	};
+	
 }
