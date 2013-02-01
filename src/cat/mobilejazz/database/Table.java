@@ -126,7 +126,12 @@ public class Table implements TreeObject {
 	}
 
 	public Column getColumn(String columnName) {
-		return columns.get(columnName);
+		Column c = columns.get(columnName);
+		if (c != null) {
+			return c;
+		} else {
+			throw new IllegalArgumentException(String.format("In Table %s: Column %s not found.", name, columnName));
+		}
 	}
 
 	@Override
