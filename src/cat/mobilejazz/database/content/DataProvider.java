@@ -29,6 +29,7 @@ import android.content.UriMatcher;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.database.sqlite.SQLiteTransactionListener;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BaseColumns;
@@ -665,6 +666,14 @@ public abstract class DataProvider extends ContentProvider {
 
 	public void endTransaction(Account account) {
 		getWritableDatabase(account).endTransaction();
+	}
+
+	public void beginTransaction(Account account, SQLiteTransactionListener listener) {
+		if (listener != null) {
+			getWritableDatabase(account).beginTransactionWithListener(listener);
+		} else {
+			beginTransaction(account);
+		}
 	}
 
 	public void updateFromServer(Account account, CollectionFilter filter, ProgressListener listener, long expectedCount)
