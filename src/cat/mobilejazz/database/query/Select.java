@@ -73,6 +73,11 @@ public class Select implements Parcelable {
 			return this;
 		}
 
+		public Builder constraintNotIsNull(String column) {
+			mSelection.add(String.format("NOT %s IS NULL", column));
+			return this;
+		}
+
 		public Builder constraint(String constraint, Object... values) {
 			mSelection.add(String.format("(%s)", constraint));
 			for (Object v : values) {
