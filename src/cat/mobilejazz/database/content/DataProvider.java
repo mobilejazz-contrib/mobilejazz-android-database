@@ -678,6 +678,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	public void updateFromServer(Account account, CollectionFilter filter, ProgressListener listener, long expectedCount)
 			throws IOException, AuthenticationException {
+
 		Debug.warning(String.format("updating from reader: %s, %s", account.name, filter));
 		SQLiteDatabase db = getWritableDatabase(account);
 		DataProcessor processor = new DataProcessor(account.name, db, listener, filter.getTable(), expectedCount);
@@ -688,10 +689,12 @@ public abstract class DataProvider extends ContentProvider {
 		try {
 			Debug.warning(String.format("Begin Transaction: %s", filter));
 			db.beginTransaction();
-			Debug.warning(String.format("Deleting: %s, %s, %s", filter.getTable(), filter.getSelection(),
-					Arrays.toString(filter.getSelectionArgs())));
-			int deletedRows = db.delete(filter.getTable(), filter.getSelection(), filter.getSelectionArgs());
-			Debug.warning(String.format("Deleted %d rows", deletedRows));
+			if (filter.getSelect() != null) {
+				Debug.warning(String.format("Deleting: %s, %s, %s", filter.getTable(), filter.getSelection(),
+						Arrays.toString(filter.getSelectionArgs())));
+				int deletedRows = db.delete(filter.getTable(), filter.getSelection(), filter.getSelectionArgs());
+				Debug.warning(String.format("Deleted %d rows", deletedRows));
+			}
 			processor.performOperations();
 			db.setTransactionSuccessful();
 		} finally {
