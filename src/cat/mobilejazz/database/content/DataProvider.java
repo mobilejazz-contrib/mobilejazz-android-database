@@ -346,7 +346,7 @@ public abstract class DataProvider extends ContentProvider {
 			return mDependencies.get(uri);
 		} else {
 			List<Uri> result = new ArrayList<Uri>();
-			Table table = getDatabase().getTable(resolvedUri.table);
+			Table table = getDatabase().getTableOrThrow(resolvedUri.table);
 			for (View v : table.getReferencedBy()) {
 				Uri baseUri = getUri(resolvedUri.user, v.getName());
 				// if (resolvedUri.id != null) {

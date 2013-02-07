@@ -54,7 +54,7 @@ public class Database implements TreeObject {
 			} else {
 				// dependency is view:
 				try {
-					View depView = getView(dependencyName);
+					View depView = getViewOrThrow(dependencyName);
 					propagateDependencies(depView);
 				} catch (IllegalArgumentException e) {
 				}
@@ -95,7 +95,7 @@ public class Database implements TreeObject {
 		return views;
 	}
 
-	public Table getTable(String name) {
+	public Table getTableOrThrow(String name) {
 		Table t = tables.get(name);
 		if (t != null) {
 			return t;
@@ -104,13 +104,26 @@ public class Database implements TreeObject {
 		}
 	}
 
-	public View getView(String name) {
+	public Table getTable(String name) {
+		return tables.get(name);
+	}
+
+	public View getViewOrThrow(String name) {
 		for (View v : views) {
 			if (v.getName().equals(name)) {
 				return v;
 			}
 		}
 		throw new IllegalArgumentException(String.format("View %s not found.", name));
+	}
+
+	public View getView(String name) {
+		for (View v : views) {
+			if (v.getName().equals(name)) {
+				return v;
+			}
+		}
+		return null;
 	}
 
 	public void createDatabase(SQLiteDatabase db) {

@@ -79,7 +79,11 @@ public class Column implements TreeObject {
 	 * @return
 	 */
 	public String getDelegate(SymbolTable<?> symbols) {
-		return delegate.render(symbols);
+		if (delegate != null) {
+			return delegate.render(symbols);
+		} else {
+			return null;
+		}
 	}
 
 	public String toString() {
