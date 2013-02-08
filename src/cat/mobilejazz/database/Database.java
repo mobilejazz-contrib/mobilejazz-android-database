@@ -6,13 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 import android.database.sqlite.SQLiteDatabase;
-import cat.mobilejazz.database.View.Dependency;
 import cat.mobilejazz.database.content.Changes;
 import cat.mobilejazz.utilities.debug.Debug;
-import cat.mobilejazz.utilities.format.StringFormatter;
-import cat.mobilejazz.utilities.format.TreeObject;
 
-public class Database implements TreeObject {
+public class Database {
 
 	private Map<String, Table> tables;
 	private List<View> views;
@@ -44,17 +41,16 @@ public class Database implements TreeObject {
 	}
 
 	private void propagateDependencies(View v) {
-		for (Dependency d : v.getDependencies()) {
-			String dependencyName = d.getTable();
+		for (String dependency : v.getDependencies()) {
 			// dependency can be table or view:
-			Table table = tables.get(dependencyName);
+			Table table = tables.get(dependency);
 			if (table != null) {
 				// dependency is table:
-				tables.get(d.getTable()).addReferencedBy(v);
+				tables.get(dependency).addReferencedBy(v);
 			} else {
 				// dependency is view:
 				try {
-					View depView = getViewOrThrow(dependencyName);
+					View depView = getViewOrThrow(dependency);
 					propagateDependencies(depView);
 				} catch (IllegalArgumentException e) {
 				}
@@ -154,18 +150,18 @@ public class Database implements TreeObject {
 		return values;
 	}
 
-	@Override
-	public StringBuilder dump(StringBuilder result, int indent) {
-		StringFormatter.appendWS(result, indent * 2);
-		result.append("DATABASE: \n");
-		for (Table t : getTables()) {
-			t.dump(result, indent + 1);
-		}
-		for (View v : getViews()) {
-			v.dump(result, indent + 1);
-		}
-		return result;
-	}
+	// @Override
+	// public StringBuilder dump(StringBuilder result, int indent) {
+	// StringFormatter.appendWS(result, indent * 2);
+	// result.append("DATABASE: \n");
+	// for (Table t : getTables()) {
+	// t.dump(result, indent + 1);
+	// }
+	// for (View v : getViews()) {
+	// v.dump(result, indent + 1);
+	// }
+	// return result;
+	// }
 
 	private void appendTable(Class<?> c) throws IllegalArgumentException, IllegalAccessException,
 			InstantiationException {
