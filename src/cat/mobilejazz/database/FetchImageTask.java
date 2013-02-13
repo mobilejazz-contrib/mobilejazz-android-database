@@ -10,6 +10,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
@@ -20,7 +21,7 @@ import android.widget.TextView;
 import cat.mobilejazz.utilities.debug.Debug;
 import cat.mobilejazz.utilities.io.IOUtils;
 
-public class FetchImageTask<V extends View> extends AsyncTask<Void, Void, Bitmap> {
+public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 
 	public static interface ImageSetter<V> {
 
@@ -51,18 +52,21 @@ public class FetchImageTask<V extends View> extends AsyncTask<Void, Void, Bitmap
 	private String mDefaultUrl;
 	private int mDefaultDrawable;
 	private V mView;
+	private Context mContext;
 	private ImageSetter<V> mImageSetter;
 
-	public FetchImageTask(String imageUrl, String defaultUrl, V view, ImageSetter<V> imageSetter) {
+	public FetchImageTask(Context context, String imageUrl, String defaultUrl, V view, ImageSetter<V> imageSetter) {
 		super();
+		mContext = context;
 		mImageUrl = imageUrl;
 		mDefaultUrl = defaultUrl;
 		mView = view;
 		mImageSetter = imageSetter;
 	}
 
-	public FetchImageTask(String imageUrl, int defaultDrawable, V view, ImageSetter<V> imageSetter) {
+	public FetchImageTask(Context context, String imageUrl, int defaultDrawable, V view, ImageSetter<V> imageSetter) {
 		super();
+		mContext = context;
 		mImageUrl = imageUrl;
 		mDefaultDrawable = defaultDrawable;
 		mView = view;
@@ -70,7 +74,7 @@ public class FetchImageTask<V extends View> extends AsyncTask<Void, Void, Bitmap
 	}
 
 	private File getCacheFile() {
-		return new File(mView.getContext().getCacheDir(), mImageUrl);
+		return new File(mContext.getCacheDir(), mImageUrl);
 	}
 
 	@Override
@@ -115,39 +119,51 @@ public class FetchImageTask<V extends View> extends AsyncTask<Void, Void, Bitmap
 		if (result == null) {
 			if (mDefaultUrl != null && !mImageUrl.equals(mDefaultUrl)) {
 				// default url:
-				fetchImage(mDefaultUrl, mDefaultUrl, mView, mImageSetter);
-			} else if (mDefaultDrawable != 0){
+				fetchImage(mContext, mDefaultUrl, mDefaultUrl, mView, mImageSetter);
+			} else if (mDefaultDrawable != 0) {
 				// default res id:
-				mImageSetter.onSetImage(mView, BitmapFactory.decodeResource(mView.getResources(), mDefaultDrawable));
+				mImageSetter.onSetImage(mView, BitmapFactory.decodeResource(mContext.getResources(), mDefaultDrawable));
 			}
 		} else {
 			mImageSetter.onSetImage(mView, result);
 		}
 	}
 
+	public static <V> void fetchImage(Context context, String imageUrl, String defaultUrl, V view,
+			ImageSetter<V> imageSetter) {
+		new FetchImageTask<V>(context, imageUrl, defaultUrl, view, imageSetter).execute();
+	}
+
+	public static <V> void fetchImage(Context context, String imageUrl, int defaultDrawable, V view,
+			ImageSetter<V> imageSetter) {
+		new FetchImageTask<V>(context, imageUrl, defaultDrawable, view, imageSetter).execute();
+	}
+
 	public static <V extends View> void fetchImage(String imageUrl, String defaultUrl, V view,
 			ImageSetter<V> imageSetter) {
-		new FetchImageTask<V>(imageUrl, defaultUrl, view, imageSetter).execute();
+		new FetchImageTask<V>(view.getContext(), imageUrl, defaultUrl, view, imageSetter).execute();
 	}
 
 	public static <V extends View> void fetchImage(String imageUrl, int defaultDrawable, V view,
 			ImageSetter<V> imageSetter) {
-		new FetchImageTask<V>(imageUrl, defaultDrawable, view, imageSetter).execute();
+		new FetchImageTask<V>(view.getContext(), imageUrl, defaultDrawable, view, imageSetter).execute();
 	}
 
 	public static void fetchImage(String imageUrl, String defaultUrl, ImageView view) {
-		new FetchImageTask<ImageView>(imageUrl, defaultUrl, view, new ImageViewSetter()).execute();
+		new FetchImageTask<ImageView>(view.getContext(), imageUrl, defaultUrl, view, new ImageViewSetter()).execute();
 	}
 
 	public static void fetchImage(String imageUrl, int defaultDrawable, ImageView view) {
-		new FetchImageTask<ImageView>(imageUrl, defaultDrawable, view, new ImageViewSetter()).execute();
+		new FetchImageTask<ImageView>(view.getContext(), imageUrl, defaultDrawable, view, new ImageViewSetter())
+				.execute();
 	}
-	
+
 	public static void fetchImage(String imageUrl, String defaultUrl, TextView view) {
-		new FetchImageTask<TextView>(imageUrl, defaultUrl, view, new TextViewSetter()).execute();
+		new FetchImageTask<TextView>(view.getContext(), imageUrl, defaultUrl, view, new TextViewSetter()).execute();
 	}
 
 	public static void fetchImage(String imageUrl, int defaultDrawable, TextView view) {
-		new FetchImageTask<TextView>(imageUrl, defaultDrawable, view, new TextViewSetter()).execute();
+		new FetchImageTask<TextView>(view.getContext(), imageUrl, defaultDrawable, view, new TextViewSetter())
+				.execute();
 	}
 }
