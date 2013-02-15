@@ -214,6 +214,11 @@ public class CollectionFilter implements Parcelable {
 	public boolean equals(Object o) {
 		try {
 			CollectionFilter other = (CollectionFilter) o;
+
+			if (other == null) {
+				return false;
+			}
+
 			return (ObjectUtils.equals(other.table, table) && ObjectUtils.equals(other.getSelection(), getSelection())
 					&& Arrays.equals(other.getSelectionArgs(), getSelectionArgs()) && Arrays.equals(other.apiPaths,
 					apiPaths));

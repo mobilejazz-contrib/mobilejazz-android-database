@@ -230,6 +230,24 @@ public abstract class DataProvider extends ContentProvider {
 			return String.format("%s:%d", table, id);
 		}
 
+		private final DataEntry NO_DATA = new DataEntry(Long.MAX_VALUE, null);
+
+		private DataEntry next(Iterator<DataEntry> entries) {
+			if (entries.hasNext()) {
+				return entries.next();
+			} else {
+				return NO_DATA;
+			}
+		}
+
+		private long getCurrentServerId(Cursor current) {
+			if (!current.isAfterLast()) {
+				return current.getLong(1);
+			} else {
+				return Long.MAX_VALUE;
+			}
+		}
+
 		public void performOperations() {
 			Set<String> pendingDeletes = new HashSet<String>();
 			Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE,
@@ -251,45 +269,60 @@ public abstract class DataProvider extends ContentProvider {
 
 			String serverIdColumn = getChangeIdColumn(mCurrentSelection.getTable());
 
-			Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID, serverIdColumn },
-					mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(), null, null, serverIdColumn);
-			current.moveToFirst();
-
 			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
 			for (Map.Entry<String, SortedSet<DataEntry>> e : mOperations.entrySet()) {
 				String table = e.getKey();
 				String changeIdColumn = getChangeIdColumn(table);
 
-				Iterator<DataEntry> i = e.getValue().iterator();
-				DataEntry entry = i.next();
-				while (!current.isAfterLast() && i.hasNext()) {
-					long currentServerId = current.getLong(1);
-					if (entry.serverId == currentServerId) {
-						// update:
-						mDb.update(table, entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-						entry = i.next();
-						current.moveToNext();
-						mOperationsDone++;
-						mProgress += step;
-						mListener.onProgress(
-								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-								mProgress);
-					} else if (entry.serverId < currentServerId) {
-						// insert:
-						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-							mDb.insert(table, null, entry.values);
+				if (table.equals(mMainTable)) {
+
+					Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID,
+							serverIdColumn }, mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(),
+							null, null, serverIdColumn);
+					current.moveToFirst();
+
+					Iterator<DataEntry> i = e.getValue().iterator();
+					DataEntry entry = next(i);
+					while (!current.isAfterLast() || i.hasNext()) {
+						long currentServerId = getCurrentServerId(current);
+						if (entry.serverId == currentServerId) {
+							// update:
+							mDb.update(table, entry.values, "_id = ?",
+									new String[] { String.valueOf(current.getLong(0)) });
+							entry = next(i);
+							current.moveToNext();
+							mOperationsDone++;
+							mProgress += step;
+							mListener.onProgress(
+									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+									mProgress);
+						} else if (entry.serverId < currentServerId) {
+							// insert:
+							if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
+								mDb.insert(table, null, entry.values);
+							}
+							entry = next(i);
+							mOperationsDone++;
+							mProgress += step;
+							mListener.onProgress(
+									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+									mProgress);
+						} else {
+							// delete:
+							mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+							current.moveToNext();
 						}
-						entry = i.next();
-						mOperationsDone++;
-						mProgress += step;
-						mListener.onProgress(
-								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-								mProgress);
-					} else {
-						// delete:
-						mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-						current.moveToNext();
+					}
+
+					current.close();
+				} else {
+					// process non maintable entries
+					for (DataEntry entry : e.getValue()) {
+						// no deletes are propagated along delegates:
+						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
+							mDb.insertWithOnConflict(table, null, entry.values, SQLiteDatabase.CONFLICT_REPLACE);
+						}
 					}
 				}
 			}
