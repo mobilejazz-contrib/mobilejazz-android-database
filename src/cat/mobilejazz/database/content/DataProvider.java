@@ -3,7 +3,6 @@ package cat.mobilejazz.database.content;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,6 +10,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.WeakHashMap;
 
 import org.apache.http.auth.AuthenticationException;
@@ -43,6 +44,7 @@ import cat.mobilejazz.database.Storage;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.View;
 import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
+import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.debug.Debug;
 
 /**
@@ -161,6 +163,30 @@ public abstract class DataProvider extends ContentProvider {
 		}
 	}
 
+	private class DataEntry implements Comparable<DataEntry> {
+
+		private long serverId;
+		private ContentValues values;
+
+		public DataEntry(long serverId, ContentValues values) {
+			this.serverId = serverId;
+			this.values = values;
+		}
+
+		@Override
+		public int compareTo(DataEntry another) {
+			if (serverId > another.serverId) {
+				return 1;
+			} else if (serverId < another.serverId) {
+				return -1;
+			} else {
+				return 0;
+			}
+		}
+
+	}
+
+	/* TODO: maybe outsource to tb project? */
 	private class DataProcessor implements DataAdapterListener {
 
 		private SQLiteDatabase mDb;
@@ -176,14 +202,16 @@ public abstract class DataProvider extends ContentProvider {
 		private long mDownloadsDone;
 		private long mExpectedCount;
 
-		private Map<String, Collection<ContentValues>> mOperations;
+		private Select mCurrentSelection;
+
+		private Map<String, SortedSet<DataEntry>> mOperations;
 
 		public DataProcessor(String user, SQLiteDatabase db, ProgressListener listener, String mainTable,
-				long expectedCount) {
+				long expectedCount, Select currentSelection) {
 			mDb = db;
 			mUser = user;
 			mAffectedTables = new HashSet<String>();
-			mOperations = new HashMap<String, Collection<ContentValues>>();
+			mOperations = new HashMap<String, SortedSet<DataEntry>>();
 			mListener = listener;
 			mExpectedCount = expectedCount;
 			if (expectedCount > 0) {
@@ -195,6 +223,7 @@ public abstract class DataProvider extends ContentProvider {
 			mDownloadsDone = 0;
 			mOperationsDone = 0;
 			mMainTable = mainTable;
+			mCurrentSelection = currentSelection;
 		}
 
 		private String getSignature(String table, long id) {
@@ -220,25 +249,52 @@ public abstract class DataProvider extends ContentProvider {
 				Debug.debug("\t" + s);
 			}
 
+			String serverIdColumn = getChangeIdColumn(mCurrentSelection.getTable());
+
+			Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID, serverIdColumn },
+					mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(), null, null, serverIdColumn);
+			current.moveToFirst();
+
 			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
-			for (Map.Entry<String, Collection<ContentValues>> e : mOperations.entrySet()) {
+			for (Map.Entry<String, SortedSet<DataEntry>> e : mOperations.entrySet()) {
 				String table = e.getKey();
 				String changeIdColumn = getChangeIdColumn(table);
-				for (ContentValues v : e.getValue()) {
-					if (v.containsKey(changeIdColumn)
-							&& !pendingDeletes.contains(getSignature(table, v.getAsLong(changeIdColumn)))) {
-						mDb.insertWithOnConflict(table, null, v, SQLiteDatabase.CONFLICT_REPLACE);
+
+				Iterator<DataEntry> i = e.getValue().iterator();
+				DataEntry entry = i.next();
+				while (!current.isAfterLast() && i.hasNext()) {
+					long currentServerId = current.getLong(1);
+					if (entry.serverId == currentServerId) {
+						// update:
+						mDb.update(table, entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+						entry = i.next();
+						current.moveToNext();
+						mOperationsDone++;
+						mProgress += step;
+						mListener.onProgress(
+								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+								mProgress);
+					} else if (entry.serverId < currentServerId) {
+						// insert:
+						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
+							mDb.insert(table, null, entry.values);
+						}
+						entry = i.next();
+						mOperationsDone++;
+						mProgress += step;
+						mListener.onProgress(
+								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+								mProgress);
+					} else {
+						// delete:
+						mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+						current.moveToNext();
 					}
-					mDb.insertWithOnConflict(table, null, v, SQLiteDatabase.CONFLICT_REPLACE);
-					mOperationsDone++;
-					mProgress += step;
-					mListener.onProgress(
-							String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-							mProgress);
 				}
 			}
 
+			Debug.info("Operations done: " + mOperationsDone);
 			mListener.onFinished();
 		}
 
@@ -247,12 +303,15 @@ public abstract class DataProvider extends ContentProvider {
 			Debug.info(String.format("onDataEntry: %s, %s", table, data));
 			// mDb.insertWithOnConflict(table, null, data,
 			// SQLiteDatabase.CONFLICT_REPLACE);
-			Collection<ContentValues> inserts = mOperations.get(table);
+			SortedSet<DataEntry> inserts = mOperations.get(table);
 			if (inserts == null) {
-				inserts = new ArrayList<ContentValues>();
+				inserts = new TreeSet<DataEntry>();
 				mOperations.put(table, inserts);
 			}
-			inserts.add(data);
+
+			String changeIdColumn = getChangeIdColumn(table);
+			inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
+
 			mCount++;
 
 			mAffectedTables.add(table);
@@ -272,10 +331,6 @@ public abstract class DataProvider extends ContentProvider {
 			}
 		}
 
-		@Override
-		public void onDataDeleted(String table, long id) {
-			// ignore for now
-		}
 	}
 
 	private static final int ROW_URI = 0;
@@ -481,19 +536,19 @@ public abstract class DataProvider extends ContentProvider {
 	 * Gets the name of the column that stores the id that should be entered in
 	 * the object id field of the changes table. Subclasses may override this to
 	 * for example use a server id instead of the local sqlite id. If this
-	 * method returns {@code null} the "native" id field is used. The native id
-	 * field is the one that is defined as the primary key of the table and is
-	 * also used when appending ids in uris.
+	 * method returns {@code BaseColumns._ID} the "native" id field is used. The
+	 * native id field is the one that is defined as the primary key of the
+	 * table and is also used when appending ids in uris.
 	 * 
 	 * @param table
 	 *            the table
-	 * @return {@code null} by default.
+	 * @return the native id field {@code BaseColumns._ID} by default.
 	 */
 	protected String getChangeIdColumn(String table) {
-		return null;
+		return BaseColumns._ID;
 	}
 
-	protected ContentValues getChanges(int action, String table, long id, ContentValues values,
+	protected ContentValues getChanges(SQLiteDatabase db, int action, String table, long id, ContentValues values,
 			String customChangeValue, String additionalData) {
 		try {
 			String json = customChangeValue;
@@ -502,10 +557,22 @@ public abstract class DataProvider extends ContentProvider {
 				json = obj.toString();
 			}
 
-			String changeIdColumn = getChangeIdColumn(table);
-			long objId = (changeIdColumn != null) ? values.getAsLong(changeIdColumn) : id;
-
 			ContentValues changes = new ContentValues();
+
+			String changeIdColumn = getChangeIdColumn(table);
+			long objId = id;
+			if (!changeIdColumn.equals(BaseColumns._ID)) {
+				if (values != null && values.containsKey(changeIdColumn)) {
+					objId = values.getAsLong(changeIdColumn);
+				} else {
+					Cursor c = db.query(table, new String[] { changeIdColumn }, "_id = ?",
+							new String[] { String.valueOf(id) }, null, null, null);
+					c.moveToFirst();
+					objId = c.getLong(0);
+					c.close();
+				}
+			}
+
 			changes.put(Changes.COLUMN_TABLE, table);
 			changes.put(Changes.COLUMN_NATIVE_ID, id);
 			changes.put(Changes.COLUMN_ID, objId);
@@ -551,7 +618,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	protected void insertSingleChange(SQLiteDatabase db, int action, long id, ResolvedUri resolvedUri,
 			ContentValues values) {
-		ContentValues changes = getChanges(action, resolvedUri.table, id, values,
+		ContentValues changes = getChanges(db, action, resolvedUri.table, id, values,
 				resolvedUri.getString(QUERY_KEY_CHANGE_VALUE), resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA));
 		db.insert(Changes.TABLE_NAME, null, changes);
 	}
@@ -614,7 +681,7 @@ public abstract class DataProvider extends ContentProvider {
 		return value + 1;
 	}
 
-	private synchronized long newUID(String table, String column) {
+	public synchronized long newUID(String table, String column) {
 		SharedPreferences pref = getContext().getSharedPreferences("uid", Context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = pref.edit();
 		long maxValue = pref.getLong(table + ":" + column, firstUIDValue());
@@ -642,6 +709,10 @@ public abstract class DataProvider extends ContentProvider {
 		long rowId = 0;
 
 		fillUIDs(resolvedUri.table, values);
+
+		// if (values.containsKey(BaseColumns._ID)) {
+		// throw new RuntimeException();
+		// }
 
 		try {
 			db.beginTransaction();
@@ -687,6 +758,11 @@ public abstract class DataProvider extends ContentProvider {
 
 	@Override
 	public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+
+		// if (values.containsKey(BaseColumns._ID)) {
+		// throw new RuntimeException();
+		// }
+
 		Debug.info(String.format("Updating %s (%s, %s) with %s", uri, selection, Arrays.toString(selectionArgs), values));
 		ResolvedUri resolvedUri = resolveUri(uri);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
@@ -772,7 +848,8 @@ public abstract class DataProvider extends ContentProvider {
 
 		Debug.warning(String.format("updating from reader: %s, %s", account.name, filter));
 		SQLiteDatabase db = getWritableDatabase(account);
-		DataProcessor processor = new DataProcessor(account.name, db, listener, filter.getTable(), expectedCount);
+		DataProcessor processor = new DataProcessor(account.name, db, listener, filter.getTable(), expectedCount,
+				filter.getSelect());
 
 		for (String apiPath : filter.getApiPaths()) {
 			getDataAdapter().process(getContext(), account, filter.getTable(), apiPath, processor, null, null);
@@ -780,12 +857,14 @@ public abstract class DataProvider extends ContentProvider {
 		try {
 			Debug.warning(String.format("Begin Transaction: %s", filter));
 			db.beginTransaction();
-			if (filter.getSelect() != null) {
-				Debug.warning(String.format("Deleting: %s, %s, %s", filter.getTable(), filter.getSelection(),
-						Arrays.toString(filter.getSelectionArgs())));
-				int deletedRows = db.delete(filter.getTable(), filter.getSelection(), filter.getSelectionArgs());
-				Debug.warning(String.format("Deleted %d rows", deletedRows));
-			}
+			// if (filter.getSelect() != null) {
+			// Debug.warning(String.format("Deleting: %s, %s, %s",
+			// filter.getTable(), filter.getSelection(),
+			// Arrays.toString(filter.getSelectionArgs())));
+			// int deletedRows = db.delete(filter.getTable(),
+			// filter.getSelection(), filter.getSelectionArgs());
+			// Debug.warning(String.format("Deleted %d rows", deletedRows));
+			// }
 			processor.performOperations();
 			db.setTransactionSuccessful();
 		} finally {

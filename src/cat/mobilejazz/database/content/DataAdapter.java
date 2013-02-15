@@ -14,8 +14,6 @@ import android.database.Cursor;
 public interface DataAdapter {
 
 	public static interface DataAdapterListener {
-		
-		public void onDataDeleted(String table, long id);
 
 		public void onDataEntry(String table, ContentValues data);
 
@@ -23,7 +21,7 @@ public interface DataAdapter {
 
 	public void process(Context context, Account account, String table, String apiPath, DataAdapterListener listener,
 			Cursor localData, Cursor pendingChanges) throws IOException, AuthenticationException;
-	
-	public JSONObject renderValues(ContentValues values, String table, int storageClass) throws JSONException; 
+
+	public JSONObject renderValues(ContentValues values, String table, int storageClass) throws JSONException;
 
 }
