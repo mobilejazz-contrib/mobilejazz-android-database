@@ -9,6 +9,7 @@ import java.util.Map;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
 import cat.mobilejazz.database.annotation.TableName;
+import cat.mobilejazz.database.annotation.UID;
 import cat.mobilejazz.utilities.debug.Debug;
 import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.TreeObject;
@@ -53,7 +54,7 @@ public class Table implements TreeObject {
 					}
 				}
 				columns.put(columnName, new Column(type, affinity, constraint, storage, columnName, f.getName(),
-						delegate, parser, this));
+						delegate, parser, f.getAnnotation(UID.class) != null, this));
 			}
 		}
 		if (name == null) {

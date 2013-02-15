@@ -12,7 +12,6 @@ import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
-import android.provider.BaseColumns;
 import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.ObjectUtils;
 
@@ -133,6 +132,9 @@ public class CollectionFilter implements Parcelable {
 		apiPaths = new String[c.getCount()];
 		Collection<Long> ids = new ArrayList<Long>();
 		c.moveToFirst();
+
+		String primaryIdColumnName = c.getColumnName(primaryIdIndex);
+
 		while (!c.isAfterLast() && c.getPosition() < apiPaths.length) {
 			for (int i = 0; i < row.length; ++i) {
 				row[i] = c.getLong(i);
@@ -144,7 +146,7 @@ public class CollectionFilter implements Parcelable {
 		c.close();
 
 		if (tableUri != null) {
-			selection = new Select.Builder(tableUri).constraintIn(BaseColumns._ID, ids).build();
+			selection = new Select.Builder(tableUri).constraintIn(primaryIdColumnName, ids).build();
 		} else {
 			selection = null;
 		}

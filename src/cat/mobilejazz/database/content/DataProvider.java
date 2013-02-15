@@ -25,6 +25,7 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.OperationApplicationException;
+import android.content.SharedPreferences;
 import android.content.UriMatcher;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -34,6 +35,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
+import cat.mobilejazz.database.Column;
 import cat.mobilejazz.database.Database;
 import cat.mobilejazz.database.ProgressListener;
 import cat.mobilejazz.database.SQLUtils;
@@ -126,6 +128,8 @@ public abstract class DataProvider extends ContentProvider {
 		}
 
 		public String extendSelection(String selection) {
+			// TODO make this more general. Replace _ID by the
+			// primary key column name (in most cases it is _ID anyway).
 			if (id != null) {
 				if (TextUtils.isEmpty(selection))
 					return "_ID = " + id;
@@ -211,15 +215,22 @@ public abstract class DataProvider extends ContentProvider {
 			}
 			pendingChanges.close();
 
+			Debug.debug("Pending deletes: ");
+			for (String s : pendingDeletes) {
+				Debug.debug("\t" + s);
+			}
+
 			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
 			for (Map.Entry<String, Collection<ContentValues>> e : mOperations.entrySet()) {
+				String table = e.getKey();
+				String changeIdColumn = getChangeIdColumn(table);
 				for (ContentValues v : e.getValue()) {
-					if (v.containsKey(BaseColumns._ID)
-							&& !pendingDeletes.contains(getSignature(e.getKey(), v.getAsLong(BaseColumns._ID)))) {
-						mDb.insertWithOnConflict(e.getKey(), null, v, SQLiteDatabase.CONFLICT_REPLACE);
+					if (v.containsKey(changeIdColumn)
+							&& !pendingDeletes.contains(getSignature(table, v.getAsLong(changeIdColumn)))) {
+						mDb.insertWithOnConflict(table, null, v, SQLiteDatabase.CONFLICT_REPLACE);
 					}
-					mDb.insertWithOnConflict(e.getKey(), null, v, SQLiteDatabase.CONFLICT_REPLACE);
+					mDb.insertWithOnConflict(table, null, v, SQLiteDatabase.CONFLICT_REPLACE);
 					mOperationsDone++;
 					mProgress += step;
 					mListener.onProgress(
@@ -296,6 +307,8 @@ public abstract class DataProvider extends ContentProvider {
 	private Map<String, SQLiteOpenHelper> mDatabaseHelpers;
 	private Map<Uri, List<Uri>> mDependencies;
 
+	private Map<String, String[]> mUIDs;
+
 	private boolean mAggregateNotifications;
 	private List<Notification> mNotifications;
 
@@ -318,6 +331,18 @@ public abstract class DataProvider extends ContentProvider {
 		sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
 		sUriMatcher.addURI(getAuthority(), "*/*/#", ROW_URI);
 		sUriMatcher.addURI(getAuthority(), "*/*", TABLE_URI);
+
+		mUIDs = new HashMap<String, String[]>();
+		Database db = getDatabase();
+		for (Table t : db.getTables()) {
+			List<String> uids = new ArrayList<String>();
+			for (Column c : t.getColumns()) {
+				if (c.isUID()) {
+					uids.add(c.getName());
+				}
+			}
+			mUIDs.put(t.getName(), uids.toArray(new String[] {}));
+		}
 
 		return true;
 	}
@@ -452,6 +477,22 @@ public abstract class DataProvider extends ContentProvider {
 		return cursor;
 	}
 
+	/**
+	 * Gets the name of the column that stores the id that should be entered in
+	 * the object id field of the changes table. Subclasses may override this to
+	 * for example use a server id instead of the local sqlite id. If this
+	 * method returns {@code null} the "native" id field is used. The native id
+	 * field is the one that is defined as the primary key of the table and is
+	 * also used when appending ids in uris.
+	 * 
+	 * @param table
+	 *            the table
+	 * @return {@code null} by default.
+	 */
+	protected String getChangeIdColumn(String table) {
+		return null;
+	}
+
 	protected ContentValues getChanges(int action, String table, long id, ContentValues values,
 			String customChangeValue, String additionalData) {
 		try {
@@ -461,9 +502,13 @@ public abstract class DataProvider extends ContentProvider {
 				json = obj.toString();
 			}
 
+			String changeIdColumn = getChangeIdColumn(table);
+			long objId = (changeIdColumn != null) ? values.getAsLong(changeIdColumn) : id;
+
 			ContentValues changes = new ContentValues();
 			changes.put(Changes.COLUMN_TABLE, table);
-			changes.put(Changes.COLUMN_ID, id);
+			changes.put(Changes.COLUMN_NATIVE_ID, id);
+			changes.put(Changes.COLUMN_ID, objId);
 			changes.put(Changes.COLUMN_ACTION, action);
 			changes.put(Changes.COLUMN_TIMESTAMP, SQLUtils.formatTimestamp(new Date()));
 			changes.put(Changes.COLUMN_VALUES, json);
@@ -527,7 +572,8 @@ public abstract class DataProvider extends ContentProvider {
 			} else if (action == Changes.ACTION_REMOVE) {
 				insertSingleChange(db, action, 0, resolvedUri, values);
 			} else {
-				Cursor cursor = query(uri, new String[] { BaseColumns._ID }, selection, selectionArgs, null);
+				Cursor cursor = query(uri, new String[] { getChangeIdColumn(resolvedUri.table) }, selection,
+						selectionArgs, null);
 				cursor.moveToFirst();
 				while (!cursor.isAfterLast()) {
 					long id = cursor.getLong(0);
@@ -544,6 +590,47 @@ public abstract class DataProvider extends ContentProvider {
 		return null;
 	}
 
+	/**
+	 * When value of a UID when it is requested the first time for a particular
+	 * table-column pair. This may be overridden by subclasses to achieve some
+	 * desired behavior.
+	 * 
+	 * @return {@code 0} in the default implementation.
+	 */
+	protected long firstUIDValue() {
+		return 0L;
+	}
+
+	/**
+	 * Gets the next UID value provided the last one. This may be overridden by
+	 * subclasses to achieve some desired behavior. Keep in mind, however, that
+	 * the generated sequence of UIDs need to be distinct.
+	 * 
+	 * @param value
+	 *            the last generated UID.
+	 * @return {@code value+1} in the default implementation.
+	 */
+	protected long nextUIDValue(long value) {
+		return value + 1;
+	}
+
+	private synchronized long newUID(String table, String column) {
+		SharedPreferences pref = getContext().getSharedPreferences("uid", Context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = pref.edit();
+		long maxValue = pref.getLong(table + ":" + column, firstUIDValue());
+		editor.putLong(table + ":" + column, nextUIDValue(maxValue)).commit();
+		return maxValue;
+	}
+
+	private void fillUIDs(String table, ContentValues values) {
+		String[] uids = mUIDs.get(table);
+		for (String uidColumn : uids) {
+			if (!values.containsKey(uidColumn)) {
+				values.put(uidColumn, newUID(table, uidColumn));
+			}
+		}
+	}
+
 	@Override
 	public Uri insert(Uri uri, ContentValues values) {
 		Debug.info(String.format("Inserting %s with %s", uri, values));
@@ -553,8 +640,12 @@ public abstract class DataProvider extends ContentProvider {
 			throw new IllegalArgumentException("Invalid content uri for insert: " + uri);
 		}
 		long rowId = 0;
+
+		fillUIDs(resolvedUri.table, values);
+
 		try {
 			db.beginTransaction();
+
 			if (resolvedUri.getBoolean(QUERY_KEY_INSERT_OR_UPDATE)) {
 				rowId = db.insertWithOnConflict(resolvedUri.table, null, values, SQLiteDatabase.CONFLICT_REPLACE);
 			} else {

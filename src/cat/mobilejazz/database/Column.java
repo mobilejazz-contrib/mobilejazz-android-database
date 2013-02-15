@@ -18,8 +18,10 @@ public class Column implements TreeObject {
 	private DataParser parser;
 	private Table parent;
 
+	private boolean isUID;
+
 	public Column(int type, int affinity, String constraint, int storage, String name, String declaredName,
-			String delegate, DataParser parser, Table parent) {
+			String delegate, DataParser parser, boolean isUID, Table parent) {
 		this.type = type;
 		this.affinity = affinity;
 		this.constraint = constraint;
@@ -29,6 +31,7 @@ public class Column implements TreeObject {
 		this.parser = parser;
 		this.parent = parent;
 		this.delegate = new StringTemplate(delegate);
+		this.isUID = isUID;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -70,6 +73,10 @@ public class Column implements TreeObject {
 
 	public String getFullName() {
 		return parent.getName() + "." + name;
+	}
+	
+	public boolean isUID() {
+		return isUID;
 	}
 
 	/**
