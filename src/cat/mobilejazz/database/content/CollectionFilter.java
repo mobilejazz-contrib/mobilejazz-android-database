@@ -37,6 +37,7 @@ public class CollectionFilter implements Parcelable {
 
 	private String formatString;
 	private int primaryIdIndex;
+	private String primaryIdName;
 
 	/**
 	 * Create a new collection filter.
@@ -95,10 +96,11 @@ public class CollectionFilter implements Parcelable {
 	 *            specifies which one is the primary one, i.e. the key of the
 	 *            collection.
 	 */
-	public CollectionFilter(String table, Select select, String formatString, int primaryIdIndex) {
+	public CollectionFilter(String table, Select select, String formatString, int primaryIdIndex, String primaryIdName) {
 		this.selection = select;
 		this.formatString = formatString;
 		this.primaryIdIndex = primaryIdIndex;
+		this.primaryIdName = primaryIdName;
 		// cache the table for performance:
 		this.table = table;
 	}
@@ -133,8 +135,6 @@ public class CollectionFilter implements Parcelable {
 		Collection<Long> ids = new ArrayList<Long>();
 		c.moveToFirst();
 
-		String primaryIdColumnName = c.getColumnName(primaryIdIndex);
-
 		while (!c.isAfterLast() && c.getPosition() < apiPaths.length) {
 			for (int i = 0; i < row.length; ++i) {
 				row[i] = c.getLong(i);
@@ -146,7 +146,7 @@ public class CollectionFilter implements Parcelable {
 		c.close();
 
 		if (tableUri != null) {
-			selection = new Select.Builder(tableUri).constraintIn(primaryIdColumnName, ids).build();
+			selection = new Select.Builder(tableUri).constraintIn(primaryIdName, ids).build();
 		} else {
 			selection = null;
 		}
@@ -239,6 +239,7 @@ public class CollectionFilter implements Parcelable {
 		formatString = in.readString();
 		table = in.readString();
 		primaryIdIndex = in.readInt();
+		primaryIdName = in.readString();
 	}
 
 	@Override
@@ -253,6 +254,7 @@ public class CollectionFilter implements Parcelable {
 		dest.writeString(formatString);
 		dest.writeString(table);
 		dest.writeInt(primaryIdIndex);
+		dest.writeString(primaryIdName);
 	}
 
 	public static final Parcelable.Creator<CollectionFilter> CREATOR = new Parcelable.Creator<CollectionFilter>() {
