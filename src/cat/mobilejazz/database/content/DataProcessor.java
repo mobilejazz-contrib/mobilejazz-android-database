@@ -143,17 +143,9 @@ public class DataProcessor implements DataAdapterListener {
 						// insert:
 						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
 							try {
-								mDb.insert(table, null, entry.values);
+								mDb.insertOrThrow(table, null, entry.values);
 							} catch (SQLiteConstraintException e1) {
-								Cursor c = mDb.query(mMainTable, new String[] { changeIdColumn }, null, null, null,
-										null, changeIdColumn);
-								c.moveToFirst();
-								List<Long> ids = new ArrayList<Long>();
-								while (!c.isAfterLast()) {
-									ids.add(c.getLong(0));
-								}
 								Debug.logException(e1);
-								Debug.error("Existing ids: %s", ids);
 							}
 						}
 						entry = next(i);
