@@ -163,217 +163,14 @@ public abstract class DataProvider extends ContentProvider {
 		}
 	}
 
-	private class DataEntry implements Comparable<DataEntry> {
-
-		private long serverId;
-		private ContentValues values;
-
-		public DataEntry(long serverId, ContentValues values) {
-			this.serverId = serverId;
-			this.values = values;
-		}
-
-		@Override
-		public int compareTo(DataEntry another) {
-			if (serverId > another.serverId) {
-				return 1;
-			} else if (serverId < another.serverId) {
-				return -1;
-			} else {
-				return 0;
-			}
-		}
-
-	}
-
-	/* TODO: maybe outsource to tb project? */
-	private class DataProcessor implements DataAdapterListener {
-
-		private SQLiteDatabase mDb;
-		private String mUser;
-		private Set<String> mAffectedTables;
-
-		private ProgressListener mListener;
-		private String mMainTable;
-		private double mStepDownload;
-		private double mProgress;
-		private long mOperationsDone;
-		private long mCount;
-		private long mDownloadsDone;
-		private long mExpectedCount;
-
-		private Select mCurrentSelection;
-
-		private Map<String, SortedSet<DataEntry>> mOperations;
-
-		public DataProcessor(String user, SQLiteDatabase db, ProgressListener listener, String mainTable,
-				long expectedCount, Select currentSelection) {
-			mDb = db;
-			mUser = user;
-			mAffectedTables = new HashSet<String>();
-			mOperations = new HashMap<String, SortedSet<DataEntry>>();
-			mListener = listener;
-			mExpectedCount = expectedCount;
-			if (expectedCount > 0) {
-				mStepDownload = (2.0 / 3.0) / (double) expectedCount;
-			} else {
-				mStepDownload = 0.0;
-			}
-			mCount = 0;
-			mDownloadsDone = 0;
-			mOperationsDone = 0;
-			mMainTable = mainTable;
-			mCurrentSelection = currentSelection;
-		}
-
-		private String getSignature(String table, long id) {
-			return String.format("%s:%d", table, id);
-		}
-
-		private final DataEntry NO_DATA = new DataEntry(Long.MAX_VALUE, null);
-
-		private DataEntry next(Iterator<DataEntry> entries) {
-			if (entries.hasNext()) {
-				return entries.next();
-			} else {
-				return NO_DATA;
-			}
-		}
-
-		private long getCurrentServerId(Cursor current) {
-			if (!current.isAfterLast()) {
-				return current.getLong(1);
-			} else {
-				return Long.MAX_VALUE;
-			}
-		}
-
-		public void performOperations() {
-			Set<String> pendingDeletes = new HashSet<String>();
-			Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE,
-					Changes.COLUMN_ID }, String.format("%s = ?", Changes.COLUMN_ACTION),
-					new String[] { String.valueOf(Changes.ACTION_REMOVE) }, null, null, null);
-			if (pendingChanges.getCount() > 0) {
-				pendingChanges.moveToFirst();
-				while (!pendingChanges.isAfterLast()) {
-					pendingDeletes.add(getSignature(pendingChanges.getString(0), pendingChanges.getLong(1)));
-					pendingChanges.moveToNext();
-				}
-			}
-			pendingChanges.close();
-
-			Debug.debug("Pending deletes: ");
-			for (String s : pendingDeletes) {
-				Debug.debug("\t" + s);
-			}
-
-			String serverIdColumn = getChangeIdColumn(mCurrentSelection.getTable());
-
-			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
-
-			for (Map.Entry<String, SortedSet<DataEntry>> e : mOperations.entrySet()) {
-				String table = e.getKey();
-				String changeIdColumn = getChangeIdColumn(table);
-
-				if (table.equals(mMainTable)) {
-
-					Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID,
-							serverIdColumn }, mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(),
-							null, null, serverIdColumn);
-					current.moveToFirst();
-
-					Iterator<DataEntry> i = e.getValue().iterator();
-					DataEntry entry = next(i);
-					while (!current.isAfterLast() || i.hasNext()) {
-						long currentServerId = getCurrentServerId(current);
-						if (entry.serverId == currentServerId) {
-							// update:
-							mDb.update(table, entry.values, "_id = ?",
-									new String[] { String.valueOf(current.getLong(0)) });
-							entry = next(i);
-							current.moveToNext();
-							mOperationsDone++;
-							mProgress += step;
-							mListener.onProgress(
-									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-									mProgress);
-						} else if (entry.serverId < currentServerId) {
-							// insert:
-							if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-								mDb.insert(table, null, entry.values);
-							}
-							entry = next(i);
-							mOperationsDone++;
-							mProgress += step;
-							mListener.onProgress(
-									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-									mProgress);
-						} else {
-							// delete:
-							mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-							current.moveToNext();
-						}
-					}
-
-					current.close();
-				} else {
-					// process non maintable entries
-					for (DataEntry entry : e.getValue()) {
-						// no deletes are propagated along delegates:
-						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-							mDb.insertWithOnConflict(table, null, entry.values, SQLiteDatabase.CONFLICT_REPLACE);
-						}
-					}
-				}
-			}
-
-			Debug.info("Operations done: " + mOperationsDone);
-			mListener.onFinished();
-		}
-
-		@Override
-		public void onDataEntry(String table, ContentValues data) {
-			Debug.info(String.format("onDataEntry: %s, %s", table, data));
-			// mDb.insertWithOnConflict(table, null, data,
-			// SQLiteDatabase.CONFLICT_REPLACE);
-			SortedSet<DataEntry> inserts = mOperations.get(table);
-			if (inserts == null) {
-				inserts = new TreeSet<DataEntry>();
-				mOperations.put(table, inserts);
-			}
-
-			String changeIdColumn = getChangeIdColumn(table);
-			inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
-
-			mCount++;
-
-			mAffectedTables.add(table);
-
-			if (table.equals(mMainTable) && mStepDownload > 0.0) {
-				mDownloadsDone++;
-				mProgress += mStepDownload;
-				mListener.onProgress(String.format("Downloading %s data %d...", mMainTable, mDownloadsDone), mProgress);
-			}
-		}
-
-		public void notifyChanges() {
-			for (String table : mAffectedTables) {
-				Uri uri = getUri(mUser, table);
-				ResolvedUri resolvedUri = resolveUri(uri);
-				notifyChange(uri, resolvedUri);
-			}
-		}
-
-	}
-
 	private static final int ROW_URI = 0;
 	private static final int TABLE_URI = 1;
 
-	private Uri getUri(String user, String table) {
+	protected Uri getUri(String user, String table) {
 		return new Uri.Builder().scheme("content").authority(getAuthority()).appendPath(user).appendPath(table).build();
 	}
 
-	private Uri getUri(Account user, String table) {
+	protected Uri getUri(Account user, String table) {
 		return new Uri.Builder().scheme("content").authority(getAuthority()).appendPath(user.name).appendPath(table)
 				.build();
 	}
@@ -554,11 +351,11 @@ public abstract class DataProvider extends ContentProvider {
 				resolvedUri.getString(QUERY_KEY_GROUP_BY), null, sortOrder);
 
 		if (resolvedUri.table.equals(Changes.TABLE_NAME)) {
-			Debug.verbose(String.format("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri,
-					Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder));
+			Debug.verbose("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri, Arrays.toString(projection),
+					selection, Arrays.toString(selectionArgs), sortOrder);
 		} else {
-			Debug.debug(String.format("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri,
-					Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder));
+			Debug.debug("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri, Arrays.toString(projection),
+					selection, Arrays.toString(selectionArgs), sortOrder);
 		}
 
 		cursor.setNotificationUri(getContext().getContentResolver(), uri);
@@ -881,7 +678,7 @@ public abstract class DataProvider extends ContentProvider {
 
 		Debug.warning(String.format("updating from reader: %s, %s", account.name, filter));
 		SQLiteDatabase db = getWritableDatabase(account);
-		DataProcessor processor = new DataProcessor(account.name, db, listener, filter.getTable(), expectedCount,
+		DataProcessor processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
 				filter.getSelect());
 
 		for (String apiPath : filter.getApiPaths()) {
