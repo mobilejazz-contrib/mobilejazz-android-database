@@ -1,10 +1,8 @@
 package cat.mobilejazz.database.content;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -71,14 +69,6 @@ public class DataProcessor implements DataAdapterListener {
 
 	private final DataEntry NO_DATA = new DataEntry(Long.MAX_VALUE, null);
 
-	private DataEntry next(Iterator<DataEntry> entries) {
-		if (entries.hasNext()) {
-			return entries.next();
-		} else {
-			return NO_DATA;
-		}
-	}
-
 	private long getCurrentServerId(Cursor current) {
 		if (!current.isAfterLast()) {
 			return current.getLong(1);
@@ -120,19 +110,20 @@ public class DataProcessor implements DataAdapterListener {
 						new String[] { BaseColumns._ID, serverIdColumn }, mCurrentSelection.getSelection(),
 						mCurrentSelection.getSelectionArgs(), null, null, serverIdColumn);
 				current.moveToFirst();
-				Debug.debug("[%d] Querying: %s", current.getCount(), mCurrentSelection);
+				Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(), mCurrentSelection);
 
-				Iterator<DataEntry> i = e.getValue().iterator();
-				DataEntry entry = next(i);
-				while (!current.isAfterLast() || i.hasNext()) {
+				CachedIterator i = new CachedIterator(e.getValue().iterator());
+
+				while (!current.isAfterLast() || !i.isAfterLast()) {
 					long currentServerId = getCurrentServerId(current);
+					DataEntry entry = i.getValue();
 
 					Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
 
 					if (entry.serverId == currentServerId) {
 						// update:
 						mDb.update(table, entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-						entry = next(i);
+						i.moveToNext();
 						current.moveToNext();
 						mOperationsDone++;
 						mProgress += step;
@@ -148,7 +139,7 @@ public class DataProcessor implements DataAdapterListener {
 								Debug.logException(e1);
 							}
 						}
-						entry = next(i);
+						i.moveToNext();
 						mOperationsDone++;
 						mProgress += step;
 						mListener.onProgress(
@@ -208,6 +199,35 @@ public class DataProcessor implements DataAdapterListener {
 			ResolvedUri resolvedUri = provider.resolveUri(uri);
 			provider.notifyChange(uri, resolvedUri);
 		}
+	}
+
+	private class CachedIterator {
+
+		private DataEntry value;
+		private Iterator<DataEntry> iterator;
+
+		public CachedIterator(Iterator<DataEntry> iterator) {
+			this.iterator = iterator;
+
+			moveToNext();
+		}
+
+		public void moveToNext() {
+			if (iterator.hasNext()) {
+				value = iterator.next();
+			} else {
+				value = NO_DATA;
+			}
+		}
+
+		public boolean isAfterLast() {
+			return value == NO_DATA;
+		}
+
+		public DataEntry getValue() {
+			return value;
+		}
+
 	}
 
 }
