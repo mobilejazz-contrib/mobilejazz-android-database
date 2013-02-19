@@ -8,9 +8,9 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.provider.BaseColumns;
@@ -63,6 +63,7 @@ public class DataProcessor implements DataAdapterListener {
 		mCurrentSelection = currentSelection;
 	}
 
+	@SuppressLint("DefaultLocale")
 	private String getSignature(String table, long id) {
 		return String.format("%s:%d", table, id);
 	}
@@ -133,11 +134,7 @@ public class DataProcessor implements DataAdapterListener {
 					} else if (entry.serverId < currentServerId) {
 						// insert:
 						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-							try {
-								mDb.insertOrThrow(table, null, entry.values);
-							} catch (SQLiteConstraintException e1) {
-								Debug.logException(e1);
-							}
+							mDb.insertWithOnConflict(table, null, entry.values, SQLiteDatabase.CONFLICT_REPLACE);
 						}
 						i.moveToNext();
 						mOperationsDone++;
