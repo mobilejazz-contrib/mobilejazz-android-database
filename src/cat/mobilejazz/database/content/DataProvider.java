@@ -394,7 +394,7 @@ public abstract class DataProvider extends ContentProvider {
 			if (!changeIdColumn.equals(BaseColumns._ID)) {
 				if (values != null && values.containsKey(changeIdColumn)) {
 					objId = values.getAsLong(changeIdColumn);
-				} else {
+				} else if (id != 0L) {
 					Cursor c = db.query(table, new String[] { changeIdColumn }, "_id = ?",
 							new String[] { String.valueOf(id) }, null, null, null);
 					c.moveToFirst();
