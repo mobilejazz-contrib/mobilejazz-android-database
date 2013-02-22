@@ -1,5 +1,7 @@
 package cat.mobilejazz.database;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -132,6 +134,30 @@ public class SingleSelectView extends View {
 
 	public SingleSelectView(String name, List<ViewColumn> columns, List<Dependency> dependencies) {
 		this(name, columns, dependencies, "");
+	}
+
+	/**
+	 * Creates a new single select view from a single table. The only difference
+	 * between the table and the view is, that the view may contain only a
+	 * subset of the tables columns, and the columns may be aliased.
+	 * 
+	 * @param name
+	 *            The name of the view.
+	 * @param table
+	 *            The name of the single source table.
+	 * @param columnsAs
+	 *            An array of {@code (column, alias)} pairs. Note that it is
+	 *            mandatory to provide an alias for each column. Therefore it is
+	 *            only possible to pass an array with an even length.
+	 */
+	public SingleSelectView(String name, String table, String... columnsAs) {
+		super(name);
+		mDependencies = new DependencyIterable(Arrays.asList(new Dependency(table, null, null)));
+		mColumns = new ArrayList<ViewColumn>();
+		for (int i = 0; i < columnsAs.length; i += 2) {
+			mColumns.add(new ViewColumn(columnsAs[i + 1], columnsAs[i]));
+		}
+		mSelectSuffix = "";
 	}
 
 	public SingleSelectView(String name, List<ViewColumn> columns, List<Dependency> dependencies, String selectSuffix) {
