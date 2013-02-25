@@ -5,13 +5,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.WeakHashMap;
 
 import org.apache.http.auth.AuthenticationException;
@@ -43,8 +39,6 @@ import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Storage;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.View;
-import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
-import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.debug.Debug;
 
 /**
