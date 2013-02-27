@@ -40,18 +40,18 @@ public class Database {
 		return null;
 	}
 
-	private void propagateDependencies(View v) {
-		for (String dependency : v.getDependencies()) {
+	private void propagateDependencies(View origin, View current) {
+		for (String dependency : current.getDependencies()) {
 			// dependency can be table or view:
 			Table table = tables.get(dependency);
 			if (table != null) {
 				// dependency is table:
-				tables.get(dependency).addReferencedBy(v);
+				tables.get(dependency).addReferencedBy(origin);
 			} else {
 				// dependency is view:
 				try {
 					View depView = getViewOrThrow(dependency);
-					propagateDependencies(depView);
+					propagateDependencies(origin, depView);
 				} catch (IllegalArgumentException e) {
 				}
 			}
@@ -70,7 +70,7 @@ public class Database {
 		for (View v : databaseViews) {
 			// this needs to be done in a separate loop, because views can
 			// depend on other views.
-			propagateDependencies(v);
+			propagateDependencies(v, v);
 		}
 	}
 
