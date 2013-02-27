@@ -78,6 +78,14 @@ public class DataProcessor implements DataAdapterListener {
 		}
 	}
 
+	private void insertOrUpdate(String table, ContentValues values, String identifyingColumn, long identifyingValue) {
+		long result = mDb.insertWithOnConflict(table, null, values, SQLiteDatabase.CONFLICT_IGNORE);
+		if (result < 0L) {
+			// row exists already -> update:
+			mDb.update(table, values, String.format("%s = %d", identifyingColumn, identifyingValue), null);
+		}
+	}
+
 	public void performOperations() {
 		Set<String> pendingDeletes = new HashSet<String>();
 		Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE, Changes.COLUMN_ID },
@@ -134,7 +142,7 @@ public class DataProcessor implements DataAdapterListener {
 					} else if (entry.serverId < currentServerId) {
 						// insert:
 						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-							mDb.insertWithOnConflict(table, null, entry.values, SQLiteDatabase.CONFLICT_REPLACE);
+							insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
 						}
 						i.moveToNext();
 						mOperationsDone++;
@@ -155,7 +163,7 @@ public class DataProcessor implements DataAdapterListener {
 				for (DataEntry entry : e.getValue()) {
 					// no deletes are propagated along delegates:
 					if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-						mDb.insertWithOnConflict(table, null, entry.values, SQLiteDatabase.CONFLICT_REPLACE);
+						insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
 					}
 				}
 			}
