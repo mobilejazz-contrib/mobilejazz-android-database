@@ -246,19 +246,16 @@ public abstract class DataProvider extends ContentProvider {
 	}
 
 	public List<Uri> getDependencies(Uri uri, ResolvedUri resolvedUri) {
-		if (mDependencies.containsKey(uri)) {
-			return mDependencies.get(uri);
+		Uri baseUri = getUri(resolvedUri.user, resolvedUri.table);
+		List<Uri> dep = mDependencies.get(baseUri);
+		if (dep != null) {
+			return dep;
 		} else {
 			List<Uri> result = new ArrayList<Uri>();
 			Table table = getDatabase().getTableOrThrow(resolvedUri.table);
 			for (View v : table.getReferencedBy()) {
-				Uri baseUri = getUri(resolvedUri.user, v.getName());
-				// if (resolvedUri.id != null) {
-				// result.add(ContentUris.withAppendedId(baseUri,
-				// resolvedUri.id));
-				// } else {
+				baseUri = getUri(resolvedUri.user, v.getName());
 				result.add(baseUri);
-				// }
 			}
 			mDependencies.put(uri, result);
 			return result;
@@ -647,19 +644,26 @@ public abstract class DataProvider extends ContentProvider {
 		}
 	}
 
-	public void beginTransaction(Account account) {
+	public synchronized void beginTransaction(Account account) {
 		getWritableDatabase(account).beginTransaction();
+		mAggregateNotifications = true;
 	}
 
-	public void setTransactionSuccessful(Account account) {
+	public synchronized void setTransactionSuccessful(Account account) {
+		mAggregateNotifications = false;
+		for (Notification n : mNotifications) {
+			notifyChange(n.uri, n.resolvedUri);
+		}
+		mNotifications.clear();
 		getWritableDatabase(account).setTransactionSuccessful();
 	}
 
-	public void endTransaction(Account account) {
+	public synchronized void endTransaction(Account account) {
+		mAggregateNotifications = false;
 		getWritableDatabase(account).endTransaction();
 	}
 
-	public void beginTransaction(Account account, SQLiteTransactionListener listener) {
+	public synchronized void beginTransaction(Account account, SQLiteTransactionListener listener) {
 		if (listener != null) {
 			getWritableDatabase(account).beginTransactionWithListener(listener);
 		} else {
