@@ -15,7 +15,7 @@ public interface DataAdapter {
 
 	public static interface DataAdapterListener {
 
-		public void onDataEntry(String table, ContentValues data);
+		public void onDataEntry(String table, int depth, ContentValues data);
 
 	}
 

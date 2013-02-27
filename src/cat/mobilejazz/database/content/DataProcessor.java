@@ -1,9 +1,15 @@
 package cat.mobilejazz.database.content;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -11,6 +17,7 @@ import java.util.TreeSet;
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.provider.BaseColumns;
@@ -38,7 +45,8 @@ public class DataProcessor implements DataAdapterListener {
 
 	private Select mCurrentSelection;
 
-	private Map<String, SortedSet<DataEntry>> mOperations;
+	private LinkedHashMap<String, SortedSet<DataEntry>> mOperations;
+	private Map<String, Integer> mDepthMap;
 
 	private DataProvider provider;
 
@@ -48,7 +56,8 @@ public class DataProcessor implements DataAdapterListener {
 		mDb = db;
 		mUser = user;
 		mAffectedTables = new HashSet<String>();
-		mOperations = new HashMap<String, SortedSet<DataEntry>>();
+		mOperations = new LinkedHashMap<String, SortedSet<DataEntry>>();
+		mDepthMap = new HashMap<String, Integer>();
 		mListener = listener;
 		mExpectedCount = expectedCount;
 		if (expectedCount > 0) {
@@ -79,10 +88,14 @@ public class DataProcessor implements DataAdapterListener {
 	}
 
 	private void insertOrUpdate(String table, ContentValues values, String identifyingColumn, long identifyingValue) {
-		long result = mDb.insertWithOnConflict(table, null, values, SQLiteDatabase.CONFLICT_IGNORE);
-		if (result < 0L) {
-			// row exists already -> update:
-			mDb.update(table, values, String.format("%s = %d", identifyingColumn, identifyingValue), null);
+		try {
+			long result = mDb.insertWithOnConflict(table, null, values, SQLiteDatabase.CONFLICT_IGNORE);
+			if (result < 0L) {
+				// row exists already -> update:
+				mDb.update(table, values, String.format("%s = %d", identifyingColumn, identifyingValue), null);
+			}
+		} catch (SQLiteConstraintException e) {
+			Debug.error("Constraint error inserting into %s, %s", table, values);
 		}
 	}
 
@@ -109,7 +122,17 @@ public class DataProcessor implements DataAdapterListener {
 
 		double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
-		for (Map.Entry<String, SortedSet<DataEntry>> e : mOperations.entrySet()) {
+		List<Map.Entry<String, SortedSet<DataEntry>>> operations = new ArrayList<Map.Entry<String, SortedSet<DataEntry>>>(
+				mOperations.entrySet());
+		Collections.sort(operations, new Comparator<Map.Entry<String, SortedSet<DataEntry>>>() {
+
+			@Override
+			public int compare(Entry<String, SortedSet<DataEntry>> lhs, Entry<String, SortedSet<DataEntry>> rhs) {
+				return mDepthMap.get(lhs.getKey()).compareTo(mDepthMap.get(rhs.getKey()));
+			}
+
+		});
+		for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
 			String table = e.getKey();
 			String changeIdColumn = provider.getChangeIdColumn(table);
 
@@ -174,14 +197,16 @@ public class DataProcessor implements DataAdapterListener {
 	}
 
 	@Override
-	public void onDataEntry(String table, ContentValues data) {
+	public void onDataEntry(String table, int depth, ContentValues data) {
 		Debug.verbose(String.format("onDataEntry: %s, %s", table, data));
 		// mDb.insertWithOnConflict(table, null, data,
 		// SQLiteDatabase.CONFLICT_REPLACE);
 		SortedSet<DataEntry> inserts = mOperations.get(table);
 		if (inserts == null) {
 			inserts = new TreeSet<DataEntry>();
+			Debug.warning("ENTERING: %s, %d", table, depth);
 			mOperations.put(table, inserts);
+			mDepthMap.put(table, depth);
 		}
 
 		String changeIdColumn = provider.getChangeIdColumn(table);
