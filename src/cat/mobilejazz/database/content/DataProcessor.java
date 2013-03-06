@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +24,7 @@ import cat.mobilejazz.database.ProgressListener;
 import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
 import cat.mobilejazz.database.content.DataProvider.ResolvedUri;
 import cat.mobilejazz.database.query.Select;
+import cat.mobilejazz.utilities.collections.CachedIterator;
 import cat.mobilejazz.utilities.debug.Debug;
 
 /* TODO: maybe outsource to tb project? */
@@ -144,7 +144,7 @@ public class DataProcessor implements DataAdapterListener {
 				current.moveToFirst();
 				Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(), mCurrentSelection);
 
-				CachedIterator i = new CachedIterator(e.getValue().iterator());
+				CachedIterator<DataEntry> i = new CachedIterator<DataEntry>(e.getValue().iterator(), NO_DATA);
 
 				while (!current.isAfterLast() || !i.isAfterLast()) {
 					long currentServerId = getCurrentServerId(current);
@@ -229,35 +229,6 @@ public class DataProcessor implements DataAdapterListener {
 			ResolvedUri resolvedUri = provider.resolveUri(uri);
 			provider.notifyChange(uri, resolvedUri);
 		}
-	}
-
-	private class CachedIterator {
-
-		private DataEntry value;
-		private Iterator<DataEntry> iterator;
-
-		public CachedIterator(Iterator<DataEntry> iterator) {
-			this.iterator = iterator;
-
-			moveToNext();
-		}
-
-		public void moveToNext() {
-			if (iterator.hasNext()) {
-				value = iterator.next();
-			} else {
-				value = NO_DATA;
-			}
-		}
-
-		public boolean isAfterLast() {
-			return value == NO_DATA;
-		}
-
-		public DataEntry getValue() {
-			return value;
-		}
-
 	}
 
 }
