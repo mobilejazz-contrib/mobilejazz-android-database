@@ -685,14 +685,6 @@ public abstract class DataProvider extends ContentProvider {
 		try {
 			Debug.warning(String.format("Begin Transaction: %s", filter));
 			db.beginTransaction();
-			// if (filter.getSelect() != null) {
-			// Debug.warning(String.format("Deleting: %s, %s, %s",
-			// filter.getTable(), filter.getSelection(),
-			// Arrays.toString(filter.getSelectionArgs())));
-			// int deletedRows = db.delete(filter.getTable(),
-			// filter.getSelection(), filter.getSelectionArgs());
-			// Debug.warning(String.format("Deleted %d rows", deletedRows));
-			// }
 			processor.performOperations();
 			db.setTransactionSuccessful();
 		} finally {
