@@ -40,12 +40,14 @@ public class Table implements TreeObject {
 				int storage = Storage.LOCAL;
 				String delegate = "";
 				DataParser parser = null;
+				String defaultValue = "";
 				if (column != null) {
 					type = column.type();
 					affinity = column.affinity();
 					constraint = column.constraint();
 					storage = column.storage();
 					delegate = column.delegate();
+					defaultValue = column.defaultValue();
 					if (!TextUtils.isEmpty(delegate)) {
 						type = Type.DELEGATE;
 					}
@@ -54,7 +56,7 @@ public class Table implements TreeObject {
 					}
 				}
 				columns.put(columnName, new Column(type, affinity, constraint, storage, columnName, f.getName(),
-						delegate, parser, f.getAnnotation(UID.class) != null, this));
+						delegate, defaultValue, parser, f.getAnnotation(UID.class) != null, this));
 			}
 		}
 		if (name == null) {

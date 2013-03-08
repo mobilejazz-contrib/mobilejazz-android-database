@@ -1,5 +1,6 @@
 package cat.mobilejazz.database;
 
+import android.text.TextUtils;
 import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.StringTemplate;
 import cat.mobilejazz.utilities.format.SymbolTable;
@@ -18,16 +19,19 @@ public class Column implements TreeObject {
 	private DataParser parser;
 	private Table parent;
 
+	private String defaultValue;
+
 	private boolean isUID;
 
 	public Column(int type, int affinity, String constraint, int storage, String name, String declaredName,
-			String delegate, DataParser parser, boolean isUID, Table parent) {
+			String delegate, String defaultValue, DataParser parser, boolean isUID, Table parent) {
 		this.type = type;
 		this.affinity = affinity;
 		this.constraint = constraint;
 		this.storage = storage;
 		this.name = name;
 		this.declaredName = declaredName;
+		this.defaultValue = defaultValue;
 		this.parser = parser;
 		this.parent = parent;
 		this.delegate = new StringTemplate(delegate);
@@ -74,7 +78,7 @@ public class Column implements TreeObject {
 	public String getFullName() {
 		return parent.getName() + "." + name;
 	}
-	
+
 	public boolean isUID() {
 		return isUID;
 	}
@@ -94,10 +98,19 @@ public class Column implements TreeObject {
 	}
 
 	public String toString() {
-		if (constraint == null)
-			return String.format("%s %s", name, Affinity.asString(affinity));
-		else
-			return String.format("%s %s %s", name, Affinity.asString(affinity), constraint);
+		StringBuilder s = new StringBuilder();
+		s.append(name);
+		s.append(' ');
+		s.append(Affinity.asString(affinity));
+		if (!TextUtils.isEmpty(defaultValue)) {
+			s.append(" DEFAULT ");
+			s.append(defaultValue);
+		}
+		if (!TextUtils.isEmpty(constraint)) {
+			s.append(' ');
+			s.append(constraint);
+		}
+		return s.toString();
 	}
 
 	@Override

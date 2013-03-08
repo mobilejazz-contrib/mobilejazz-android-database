@@ -14,17 +14,19 @@ import cat.mobilejazz.database.Type;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Column {
-	
+
+	String defaultValue() default "";
+
 	int type() default Type.STRING;
-	
+
 	int affinity() default Affinity.NONE;
 
 	String constraint() default "";
-	
+
 	int storage() default Storage.REMOTE;
-	
+
 	String delegate() default "";
-	
+
 	Class<? extends DataParser> parser() default IdentityParser.class;
-	
+
 }
