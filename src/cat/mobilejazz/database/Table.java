@@ -8,6 +8,7 @@ import java.util.Map;
 
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
+import cat.mobilejazz.database.annotation.Local;
 import cat.mobilejazz.database.annotation.TableName;
 import cat.mobilejazz.database.annotation.UID;
 import cat.mobilejazz.utilities.debug.Debug;
@@ -15,6 +16,11 @@ import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.TreeObject;
 
 public class Table implements TreeObject {
+
+	/**
+	 * If this is set, no changes are being recorded.
+	 */
+	private boolean isLocal;
 
 	private Collection<View> referencedBy;
 	private Map<String, Column> columns;
@@ -26,6 +32,9 @@ public class Table implements TreeObject {
 		this.declaredName = tableDescription.getSimpleName();
 		columns = new HashMap<String, Column>();
 		referencedBy = new ArrayList<View>();
+
+		isLocal = tableDescription.isAnnotationPresent(Local.class);
+
 		for (Field f : tableDescription.getFields()) {
 			if (f.isAnnotationPresent(TableName.class)) {
 				this.name = (String) f.get(null);
@@ -110,6 +119,19 @@ public class Table implements TreeObject {
 
 	public String getName() {
 		return name;
+	}
+
+	/**
+	 * Defines whether a table is defined to store local data that has no
+	 * correspondence with remote server data. If this is the case, the
+	 * {@link DataProvider} does not need to record changes on this data
+	 * structure as they do not need to be synchronized with the server. This
+	 * field may be used to store management data such as a caching table.
+	 * 
+	 * @return {@code true} if this is a local table.
+	 */
+	public boolean isLocal() {
+		return isLocal;
 	}
 
 	public String getDeclaredName() {

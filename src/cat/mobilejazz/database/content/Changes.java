@@ -4,8 +4,10 @@ import android.provider.BaseColumns;
 import cat.mobilejazz.database.Affinity;
 import cat.mobilejazz.database.Type;
 import cat.mobilejazz.database.annotation.Column;
+import cat.mobilejazz.database.annotation.Local;
 import cat.mobilejazz.database.annotation.TableName;
 
+@Local
 public class Changes implements BaseColumns {
 
 	public static final int ACTION_UPDATE = 0;

@@ -446,8 +446,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	protected void insertChanges(int action, SQLiteDatabase db, Uri uri, ResolvedUri resolvedUri, String selection,
 			String[] selectionArgs, ContentValues values) {
-		if (resolvedUri.queryParams.getBoolean(QUERY_KEY_RECORD_CHANGES)
-				&& !resolvedUri.table.equals(Changes.TABLE_NAME)) {
+		if (resolvedUri.queryParams.getBoolean(QUERY_KEY_RECORD_CHANGES) && !getDatabase().getTable(resolvedUri.table).isLocal()) {
 
 			int customAction = resolvedUri.getInt(QUERY_KEY_ACTION);
 			if (customAction >= 0) {
