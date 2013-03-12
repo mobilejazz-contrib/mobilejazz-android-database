@@ -564,9 +564,9 @@ public abstract class DataProvider extends ContentProvider {
 		int deletedRows = 0;
 		try {
 			db.beginTransaction();
-			insertChanges(Changes.ACTION_REMOVE, db, uri, resolvedUri, selection, selectionArgs, null);
 			deletedRows = db.delete(resolvedUri.table, resolvedUri.extendSelection(selection), selectionArgs);
 			if (deletedRows > 0) {
+				insertChanges(Changes.ACTION_REMOVE, db, uri, resolvedUri, selection, selectionArgs, null);
 				notifyChange(uri, resolvedUri);
 			}
 			db.setTransactionSuccessful();
