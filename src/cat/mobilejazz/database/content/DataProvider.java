@@ -389,7 +389,12 @@ public abstract class DataProvider extends ContentProvider {
 					Cursor c = db.query(table, new String[] { changeIdColumn }, "_id = ?",
 							new String[] { String.valueOf(id) }, null, null, null);
 					c.moveToFirst();
-					objId = c.getLong(0);
+					if (!c.isAfterLast()) {
+						objId = c.getLong(0);
+					} else {
+						c.close();
+						return null;
+					}
 					c.close();
 				}
 			}
@@ -441,12 +446,15 @@ public abstract class DataProvider extends ContentProvider {
 			ContentValues values) {
 		ContentValues changes = getChanges(db, action, resolvedUri.table, id, values,
 				resolvedUri.getString(QUERY_KEY_CHANGE_VALUE), resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA));
-		db.insert(Changes.TABLE_NAME, null, changes);
+		if (changes != null) {
+			db.insert(Changes.TABLE_NAME, null, changes);
+		}
 	}
 
 	protected void insertChanges(int action, SQLiteDatabase db, Uri uri, ResolvedUri resolvedUri, String selection,
 			String[] selectionArgs, ContentValues values) {
-		if (resolvedUri.queryParams.getBoolean(QUERY_KEY_RECORD_CHANGES) && !getDatabase().getTable(resolvedUri.table).isLocal()) {
+		if (resolvedUri.queryParams.getBoolean(QUERY_KEY_RECORD_CHANGES)
+				&& !getDatabase().getTable(resolvedUri.table).isLocal()) {
 
 			int customAction = resolvedUri.getInt(QUERY_KEY_ACTION);
 			if (customAction >= 0) {
@@ -563,9 +571,9 @@ public abstract class DataProvider extends ContentProvider {
 		int deletedRows = 0;
 		try {
 			db.beginTransaction();
+			insertChanges(Changes.ACTION_REMOVE, db, uri, resolvedUri, selection, selectionArgs, null);
 			deletedRows = db.delete(resolvedUri.table, resolvedUri.extendSelection(selection), selectionArgs);
 			if (deletedRows > 0) {
-				insertChanges(Changes.ACTION_REMOVE, db, uri, resolvedUri, selection, selectionArgs, null);
 				notifyChange(uri, resolvedUri);
 			}
 			db.setTransactionSuccessful();
