@@ -183,7 +183,10 @@ public class SingleSelectView extends View {
 			Dependency dep = it.next();
 			dep.appendTo(s);
 		}
-		s.append(mSelectSuffix);
+		if (!TextUtils.isEmpty(mSelectSuffix)) {
+			s.append(' ');
+			s.append(mSelectSuffix);
+		}
 		return s.toString();
 	}
 
