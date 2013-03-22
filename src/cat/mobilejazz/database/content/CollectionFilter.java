@@ -14,6 +14,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.ObjectUtils;
+import cat.mobilejazz.utilities.debug.Debug;
 
 /**
  * This class defines a filter that spans the bridge between local filtering and
@@ -134,6 +135,8 @@ public class CollectionFilter implements Parcelable {
 		apiPaths = new String[c.getCount()];
 		Collection<Long> ids = new ArrayList<Long>();
 		c.moveToFirst();
+		
+		Debug.debug("Deriving from selection: %s", selection);
 
 		while (!c.isAfterLast() && c.getPosition() < apiPaths.length) {
 			for (int i = 0; i < row.length; ++i) {
