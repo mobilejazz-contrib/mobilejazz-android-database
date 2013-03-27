@@ -188,7 +188,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	private Map<String, String[]> mUIDs;
 
-	private boolean mAggregateNotifications;
+	private Boolean mAggregateNotifications = false;
 	private List<Notification> mNotifications;
 
 	protected abstract Database getDatabase();
@@ -238,11 +238,29 @@ public abstract class DataProvider extends ContentProvider {
 	}
 
 	private SQLiteDatabase getReadableDatabase(Account user) {
-		return getDatabaseHelper(user).getReadableDatabase();
+		long start = System.currentTimeMillis();
+		SQLiteDatabase result = getDatabaseHelper(user).getReadableDatabase();
+		long time = System.currentTimeMillis() - start;
+		if (time < 10) {
+		} else if (time < 100) {
+			Debug.warning("%s waited %d ms for readable database", Thread.currentThread().getName(), time);
+		} else {
+			Debug.error("%s waited %d ms for readable database", Thread.currentThread().getName(), time);
+		}
+		return result;
 	}
 
 	private SQLiteDatabase getWritableDatabase(Account user) {
-		return getDatabaseHelper(user).getWritableDatabase();
+		long start = System.currentTimeMillis();
+		SQLiteDatabase result = getDatabaseHelper(user).getWritableDatabase();
+		long time = System.currentTimeMillis() - start;
+		if (time < 10) {
+		} else if (time < 100) {
+			Debug.warning("%s waited %d ms for writable database", Thread.currentThread().getName(), time);
+		} else {
+			Debug.error("%s waited %d ms for writable database", Thread.currentThread().getName(), time);
+		}
+		return result;
 	}
 
 	public List<Uri> getDependencies(Uri uri, ResolvedUri resolvedUri) {
@@ -320,12 +338,10 @@ public abstract class DataProvider extends ContentProvider {
 
 	protected void notifyChange(Uri uri, ResolvedUri resolvedUri) {
 		if (resolvedUri.getBoolean(QUERY_KEY_NOTIFY) && !mAggregateNotifications) {
-			Debug.debug("Notifying for " + uri);
+			Debug.verbose("%s: Notifying for %s", Thread.currentThread().getName(), uri);
 			getContext().getContentResolver().notifyChange(uri, null, resolvedUri.getBoolean(QUERY_KEY_RECORD_CHANGES));
 			for (Uri depUri : getDependencies(uri, resolvedUri)) {
-				if (resolvedUri.getBoolean(QUERY_KEY_RECORD_CHANGES))
-					Debug.debug("Requesting Upload Sync");
-				Debug.debug("Notifying for " + depUri);
+				Debug.verbose("%s: Notifying for %s", Thread.currentThread().getName(), depUri);
 				getContext().getContentResolver().notifyChange(depUri, null,
 						resolvedUri.getBoolean(QUERY_KEY_RECORD_CHANGES));
 			}
@@ -342,11 +358,11 @@ public abstract class DataProvider extends ContentProvider {
 				resolvedUri.getString(QUERY_KEY_GROUP_BY), null, sortOrder);
 
 		if (resolvedUri.table.equals(Changes.TABLE_NAME)) {
-			Debug.verbose("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri, Arrays.toString(projection),
-					selection, Arrays.toString(selectionArgs), sortOrder);
+			Debug.verbose("%s - Query[%d]: %s, %s, %s, %s, %s", Thread.currentThread().getName(), cursor.getCount(),
+					uri, Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder);
 		} else {
-			Debug.debug("Query[%d]: %s, %s, %s, %s, %s", cursor.getCount(), uri, Arrays.toString(projection),
-					selection, Arrays.toString(selectionArgs), sortOrder);
+			Debug.debug("%s - Query[%d]: %s, %s, %s, %s, %s", Thread.currentThread().getName(), cursor.getCount(), uri,
+					Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder);
 		}
 
 		cursor.setNotificationUri(getContext().getContentResolver(), uri);
@@ -388,14 +404,16 @@ public abstract class DataProvider extends ContentProvider {
 				} else if (id != 0L) {
 					Cursor c = db.query(table, new String[] { changeIdColumn }, "_id = ?",
 							new String[] { String.valueOf(id) }, null, null, null);
-					c.moveToFirst();
-					if (!c.isAfterLast()) {
-						objId = c.getLong(0);
-					} else {
+					try {
+						c.moveToFirst();
+						if (!c.isAfterLast()) {
+							objId = c.getLong(0);
+						} else {
+							return null;
+						}
+					} finally {
 						c.close();
-						return null;
 					}
-					c.close();
 				}
 			}
 
@@ -469,11 +487,15 @@ public abstract class DataProvider extends ContentProvider {
 			} else {
 				Cursor cursor = query(uri, new String[] { getChangeIdColumn(resolvedUri.table) }, selection,
 						selectionArgs, null);
-				cursor.moveToFirst();
-				while (!cursor.isAfterLast()) {
-					long id = cursor.getLong(0);
-					insertSingleChange(db, action, id, resolvedUri, values);
-					cursor.moveToNext();
+				try {
+					cursor.moveToFirst();
+					while (!cursor.isAfterLast()) {
+						long id = cursor.getLong(0);
+						insertSingleChange(db, action, id, resolvedUri, values);
+						cursor.moveToNext();
+					}
+				} finally {
+					cursor.close();
 				}
 			}
 		}
@@ -528,9 +550,9 @@ public abstract class DataProvider extends ContentProvider {
 
 	@Override
 	public Uri insert(Uri uri, ContentValues values) {
-		Debug.info(String.format("Inserting %s with %s", uri, values));
+		Debug.info("%s - Inserting %s with %s", Thread.currentThread().getName(), uri, values);
 		ResolvedUri resolvedUri = resolveUri(uri);
-		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
+		
 		if (resolvedUri.id != null) {
 			throw new IllegalArgumentException("Invalid content uri for insert: " + uri);
 		}
@@ -542,9 +564,9 @@ public abstract class DataProvider extends ContentProvider {
 		// throw new RuntimeException();
 		// }
 
+		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
+		db.beginTransaction();
 		try {
-			db.beginTransaction();
-
 			if (resolvedUri.getBoolean(QUERY_KEY_INSERT_OR_UPDATE)) {
 				rowId = db.insertWithOnConflict(resolvedUri.table, null, values, SQLiteDatabase.CONFLICT_REPLACE);
 			} else {
@@ -559,18 +581,19 @@ public abstract class DataProvider extends ContentProvider {
 		} finally {
 			db.endTransaction();
 		}
-		Debug.info("Inserted rowId: " + rowId);
+		Debug.info("%s - Inserted rowId: %d", Thread.currentThread().getName(), rowId);
 		return ContentUris.withAppendedId(uri, rowId);
 	}
 
 	@Override
 	public int delete(Uri uri, String selection, String[] selectionArgs) {
-		Debug.info(String.format("Deleting %s (%s, %s)", uri, selection, Arrays.toString(selectionArgs)));
+		Debug.info("%s - Deleting %s (%s, %s)", Thread.currentThread().getName(), uri, selection,
+				Arrays.toString(selectionArgs));
 		ResolvedUri resolvedUri = resolveUri(uri);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
 		int deletedRows = 0;
+		db.beginTransaction();
 		try {
-			db.beginTransaction();
 			insertChanges(Changes.ACTION_REMOVE, db, uri, resolvedUri, selection, selectionArgs, null);
 			deletedRows = db.delete(resolvedUri.table, resolvedUri.extendSelection(selection), selectionArgs);
 			if (deletedRows > 0) {
@@ -580,7 +603,7 @@ public abstract class DataProvider extends ContentProvider {
 		} finally {
 			db.endTransaction();
 		}
-		Debug.info(String.format("Deleted %d rows.", deletedRows));
+		Debug.info("%s - Deleted %d rows.", Thread.currentThread().getName(), deletedRows);
 		return deletedRows;
 	}
 
@@ -591,12 +614,13 @@ public abstract class DataProvider extends ContentProvider {
 		// throw new RuntimeException();
 		// }
 
-		Debug.info(String.format("Updating %s (%s, %s) with %s", uri, selection, Arrays.toString(selectionArgs), values));
+		Debug.info("%s - Updating %s (%s, %s) with %s", Thread.currentThread().getName(), uri, selection,
+				Arrays.toString(selectionArgs), values);
 		ResolvedUri resolvedUri = resolveUri(uri);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
 		int updatedRows = 0;
+		db.beginTransaction();
 		try {
-			db.beginTransaction();
 			insertChanges(Changes.ACTION_UPDATE, db, uri, resolvedUri, selection, selectionArgs, values);
 			updatedRows = db.update(resolvedUri.table, values, resolvedUri.extendSelection(selection), selectionArgs);
 			if (updatedRows > 0) {
@@ -606,7 +630,7 @@ public abstract class DataProvider extends ContentProvider {
 		} finally {
 			db.endTransaction();
 		}
-		Debug.info(String.format("Updated %d rows", updatedRows));
+		Debug.info("%s - Updated %d rows", Thread.currentThread().getName(), updatedRows);
 		return updatedRows;
 	}
 
@@ -651,26 +675,36 @@ public abstract class DataProvider extends ContentProvider {
 		}
 	}
 
-	public synchronized void beginTransaction(Account account) {
+	public void beginTransaction(Account account) {
+		Debug.info("BEGIN TRANSACTION: %s", Thread.currentThread().getName());
 		getWritableDatabase(account).beginTransaction();
-		mAggregateNotifications = true;
+		synchronized (mAggregateNotifications) {
+			mAggregateNotifications = true;
+		}
 	}
 
-	public synchronized void setTransactionSuccessful(Account account) {
-		mAggregateNotifications = false;
-		for (Notification n : mNotifications) {
-			notifyChange(n.uri, n.resolvedUri);
+	public void setTransactionSuccessful(Account account) {
+		Debug.info("SET TRANSACTION SUCCESSFUL: %s", Thread.currentThread().getName());
+		synchronized (mAggregateNotifications) {
+			mAggregateNotifications = false;
+			for (Notification n : mNotifications) {
+				notifyChange(n.uri, n.resolvedUri);
+			}
+			mNotifications.clear();
 		}
-		mNotifications.clear();
 		getWritableDatabase(account).setTransactionSuccessful();
 	}
 
-	public synchronized void endTransaction(Account account) {
-		mAggregateNotifications = false;
+	public void endTransaction(Account account) {
+		Debug.info("END TRANSACTION: %s", Thread.currentThread().getName());
+		synchronized (mAggregateNotifications) {
+			mAggregateNotifications = false;
+		}
 		getWritableDatabase(account).endTransaction();
 	}
 
-	public synchronized void beginTransaction(Account account, SQLiteTransactionListener listener) {
+	public void beginTransaction(Account account, SQLiteTransactionListener listener) {
+		Debug.info("BEGIN TRANSACTION: %s", Thread.currentThread().getName());
 		if (listener != null) {
 			getWritableDatabase(account).beginTransactionWithListener(listener);
 		} else {
@@ -681,7 +715,8 @@ public abstract class DataProvider extends ContentProvider {
 	public void updateFromServer(Account account, CollectionFilter filter, ProgressListener listener, long expectedCount)
 			throws IOException, AuthenticationException {
 
-		Debug.warning(String.format("updating from reader: %s, %s", account.name, filter));
+		Debug.info(String.format("%s - updating from reader: %s, %s", Thread.currentThread().getName(), account.name,
+				filter));
 		SQLiteDatabase db = getWritableDatabase(account);
 		DataProcessor processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
 				filter.getSelect());
@@ -690,15 +725,10 @@ public abstract class DataProvider extends ContentProvider {
 			getDataAdapter().process(getContext(), account, filter.getTable(), apiPath, processor, null, null);
 		}
 		try {
-			Debug.warning(String.format("Begin Transaction: %s", filter));
-			db.beginTransaction();
 			processor.performOperations();
-			db.setTransactionSuccessful();
 		} finally {
-			db.endTransaction();
-			Debug.warning(String.format("End Transaction: %s", filter));
+			processor.notifyChanges();
 		}
-		processor.notifyChanges();
 
 	}
 }
