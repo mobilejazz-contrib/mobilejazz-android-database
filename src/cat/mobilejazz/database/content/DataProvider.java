@@ -552,7 +552,7 @@ public abstract class DataProvider extends ContentProvider {
 	public Uri insert(Uri uri, ContentValues values) {
 		Debug.info("%s - Inserting %s with %s", Thread.currentThread().getName(), uri, values);
 		ResolvedUri resolvedUri = resolveUri(uri);
-		
+
 		if (resolvedUri.id != null) {
 			throw new IllegalArgumentException("Invalid content uri for insert: " + uri);
 		}
@@ -724,9 +724,12 @@ public abstract class DataProvider extends ContentProvider {
 		for (String apiPath : filter.getApiPaths()) {
 			getDataAdapter().process(getContext(), account, filter.getTable(), apiPath, processor, null, null);
 		}
+		db.beginTransaction();
 		try {
 			processor.performOperations();
+			db.setTransactionSuccessful();
 		} finally {
+			db.endTransaction();
 			processor.notifyChanges();
 		}
 
