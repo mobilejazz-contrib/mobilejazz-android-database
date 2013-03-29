@@ -126,7 +126,7 @@ public class EnabledCursorLoader extends AsyncTaskLoader<Cursor> {
 	public EnabledCursorLoader(LoaderParent parent) {
 		super(parent.getContext());
 		mObserver = new CachedLoadContentObserver(parent);
-		parent.setOnEnabledChangedListener(mObserver);
+		parent.addOnEnabledChangedListener(mObserver);
 	}
 
 	/**
@@ -135,11 +135,11 @@ public class EnabledCursorLoader extends AsyncTaskLoader<Cursor> {
 	 * ContentResolver.query()} for documentation on the meaning of the
 	 * parameters. These will be passed as-is to that call.
 	 */
-	public EnabledCursorLoader(LoaderParent parent, Uri uri, String[] projection, String selection, String[] selectionArgs,
-			String sortOrder) {
+	public EnabledCursorLoader(LoaderParent parent, Uri uri, String[] projection, String selection,
+			String[] selectionArgs, String sortOrder) {
 		super(parent.getContext());
 		mObserver = new CachedLoadContentObserver(parent);
-		parent.setOnEnabledChangedListener(mObserver);
+		parent.addOnEnabledChangedListener(mObserver);
 		mUri = uri;
 		mProjection = projection;
 		mSelection = selection;
@@ -192,6 +192,8 @@ public class EnabledCursorLoader extends AsyncTaskLoader<Cursor> {
 			mCursor.close();
 		}
 		mCursor = null;
+
+		mObserver.mParent.removeOnEnabledChangedListener(mObserver);
 	}
 
 	public Uri getUri() {

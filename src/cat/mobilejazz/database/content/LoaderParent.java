@@ -6,7 +6,9 @@ public interface LoaderParent {
 
 	public boolean isEnabled();
 
-	public void setOnEnabledChangedListener(OnEnabledChangedListener listener);
+	public void addOnEnabledChangedListener(OnEnabledChangedListener listener);
+
+	public void removeOnEnabledChangedListener(OnEnabledChangedListener listener);
 
 	public Context getContext();
 
