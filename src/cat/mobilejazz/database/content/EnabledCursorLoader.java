@@ -21,6 +21,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.support.v4.content.AsyncTaskLoader;
+import cat.mobilejazz.utilities.debug.Debug;
 
 /**
  * Static library support version of the framework's
@@ -49,8 +50,10 @@ public class EnabledCursorLoader extends AsyncTaskLoader<Cursor> {
 		@Override
 		public void onChange(boolean selfChange) {
 			if (mParent.isEnabled()) {
+				Debug.debug("onChange: reload");
 				onContentChanged();
 			} else {
+				Debug.debug("onChange: cached");
 				mCachedContentChange = true;
 			}
 		}
