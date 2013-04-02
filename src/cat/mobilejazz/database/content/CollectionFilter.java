@@ -135,7 +135,7 @@ public class CollectionFilter implements Parcelable {
 		apiPaths = new String[c.getCount()];
 		Collection<Long> ids = new ArrayList<Long>();
 		c.moveToFirst();
-		
+
 		Debug.debug("Deriving from selection: %s", selection);
 
 		while (!c.isAfterLast() && c.getPosition() < apiPaths.length) {
@@ -211,6 +211,12 @@ public class CollectionFilter implements Parcelable {
 	 */
 	public String[] getApiPaths() {
 		return apiPaths;
+	}
+
+	@Override
+	public int hashCode() {
+		return ObjectUtils.hashCode(table) + ObjectUtils.hashCode(getSelection()) + Arrays.hashCode(getSelectionArgs())
+				+ Arrays.hashCode(apiPaths);
 	}
 
 	@Override
