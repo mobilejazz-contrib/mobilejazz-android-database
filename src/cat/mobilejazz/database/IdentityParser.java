@@ -1,9 +1,15 @@
 package cat.mobilejazz.database;
 
-public class IdentityParser implements DataParser {
+import com.google.gson.JsonElement;
+
+/** just a placeholder **/
+public final class IdentityParser implements DataParser<Object> {
+
+	private IdentityParser() {
+	}
 
 	@Override
-	public Object parse(Object input) {
+	public Object parse(JsonElement input) {
 		return input;
 	}
 

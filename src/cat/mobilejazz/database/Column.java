@@ -6,6 +6,8 @@ import cat.mobilejazz.utilities.format.StringTemplate;
 import cat.mobilejazz.utilities.format.SymbolTable;
 import cat.mobilejazz.utilities.format.TreeObject;
 
+import com.google.gson.JsonElement;
+
 public class Column implements TreeObject {
 
 	private int type;
@@ -16,7 +18,7 @@ public class Column implements TreeObject {
 	private int storage;
 
 	private String declaredName;
-	private DataParser parser;
+	private DataParser<?> parser;
 	private Table parent;
 
 	private String defaultValue;
@@ -24,7 +26,7 @@ public class Column implements TreeObject {
 	private boolean isUID;
 
 	public Column(int type, int affinity, String constraint, int storage, String name, String declaredName,
-			String delegate, String defaultValue, DataParser parser, boolean isUID, Table parent) {
+			String delegate, String defaultValue, DataParser<?> parser, boolean isUID, Table parent) {
 		this.type = type;
 		this.affinity = affinity;
 		this.constraint = constraint;
@@ -38,12 +40,15 @@ public class Column implements TreeObject {
 		this.isUID = isUID;
 	}
 
-	@SuppressWarnings("unchecked")
-	public <T> T parse(Object value) {
+	public boolean hasParser() {
+		return parser != null;
+	}
+
+	public Object parse(JsonElement value) {
 		if (parser != null) {
-			return (T) parser.parse(value);
+			return parser.parse(value);
 		} else {
-			return (T) value;
+			throw new IllegalStateException("This column has no parser");
 		}
 	}
 

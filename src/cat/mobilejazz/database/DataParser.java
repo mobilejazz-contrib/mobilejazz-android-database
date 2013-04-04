@@ -1,7 +1,9 @@
 package cat.mobilejazz.database;
 
-public interface DataParser {
+import com.google.gson.JsonElement;
 
-	Object parse(Object input);
-	
+public interface DataParser<T> {
+
+	T parse(JsonElement input);
+
 }

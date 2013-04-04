@@ -1,6 +1,8 @@
 package cat.mobilejazz.database.content;
 
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -32,6 +34,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
+import android.util.Log;
 import cat.mobilejazz.database.Column;
 import cat.mobilejazz.database.Database;
 import cat.mobilejazz.database.ProgressListener;
@@ -95,6 +98,8 @@ public abstract class DataProvider extends ContentProvider {
 	public static final String QUERY_KEY_ADDITIONAL_DATA = "dep";
 
 	public static final String QUERY_KEY_INSERT_OR_UPDATE = "iou";
+
+	private static SimpleDateFormat debugDateFormat = new SimpleDateFormat("HH:mm:ss.S");
 
 	private static class Notification {
 		private Uri uri;
@@ -353,6 +358,8 @@ public abstract class DataProvider extends ContentProvider {
 	@Override
 	public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
 		ResolvedUri resolvedUri = resolveUri(uri);
+		Log.i("perf", String.format("%s >> QUERY: %s, %s", Thread.currentThread().getName(), resolvedUri.table,
+				debugDateFormat.format(System.currentTimeMillis())));
 		SQLiteDatabase db = getReadableDatabase(resolvedUri.user);
 		Cursor cursor = db.query(resolvedUri.table, projection, resolvedUri.extendSelection(selection), selectionArgs,
 				resolvedUri.getString(QUERY_KEY_GROUP_BY), null, sortOrder);
@@ -366,6 +373,9 @@ public abstract class DataProvider extends ContentProvider {
 		}
 
 		cursor.setNotificationUri(getContext().getContentResolver(), uri);
+		Log.i("perf", String.format("%s << QUERY: %s, %s", Thread.currentThread().getName(), resolvedUri.table,
+				debugDateFormat.format(System.currentTimeMillis())));
+
 		return cursor;
 	}
 
@@ -552,6 +562,7 @@ public abstract class DataProvider extends ContentProvider {
 	public Uri insert(Uri uri, ContentValues values) {
 		Debug.info("%s - Inserting %s with %s", Thread.currentThread().getName(), uri, values);
 		ResolvedUri resolvedUri = resolveUri(uri);
+		Log.i("T - " + Thread.currentThread().getName(), ">> INSERT: " + resolvedUri.table);
 
 		if (resolvedUri.id != null) {
 			throw new IllegalArgumentException("Invalid content uri for insert: " + uri);
@@ -582,6 +593,7 @@ public abstract class DataProvider extends ContentProvider {
 			db.endTransaction();
 		}
 		Debug.info("%s - Inserted rowId: %d", Thread.currentThread().getName(), rowId);
+		Log.i("T - " + Thread.currentThread().getName(), "<< INSERT: " + resolvedUri.table);
 		return ContentUris.withAppendedId(uri, rowId);
 	}
 
@@ -590,6 +602,7 @@ public abstract class DataProvider extends ContentProvider {
 		Debug.info("%s - Deleting %s (%s, %s)", Thread.currentThread().getName(), uri, selection,
 				Arrays.toString(selectionArgs));
 		ResolvedUri resolvedUri = resolveUri(uri);
+		Log.i("T - " + Thread.currentThread().getName(), ">> DELETE: " + resolvedUri.table);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
 		int deletedRows = 0;
 		db.beginTransaction();
@@ -604,6 +617,7 @@ public abstract class DataProvider extends ContentProvider {
 			db.endTransaction();
 		}
 		Debug.info("%s - Deleted %d rows.", Thread.currentThread().getName(), deletedRows);
+		Log.i("T - " + Thread.currentThread().getName(), "<< DELETE: " + resolvedUri.table);
 		return deletedRows;
 	}
 
@@ -617,6 +631,7 @@ public abstract class DataProvider extends ContentProvider {
 		Debug.info("%s - Updating %s (%s, %s) with %s", Thread.currentThread().getName(), uri, selection,
 				Arrays.toString(selectionArgs), values);
 		ResolvedUri resolvedUri = resolveUri(uri);
+		Log.i("T - " + Thread.currentThread().getName(), ">> UPDATE: " + resolvedUri.table);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
 		int updatedRows = 0;
 		db.beginTransaction();
@@ -631,6 +646,7 @@ public abstract class DataProvider extends ContentProvider {
 			db.endTransaction();
 		}
 		Debug.info("%s - Updated %d rows", Thread.currentThread().getName(), updatedRows);
+		Log.i("T - " + Thread.currentThread().getName(), "<< UPDATE: " + resolvedUri.table);
 		return updatedRows;
 	}
 

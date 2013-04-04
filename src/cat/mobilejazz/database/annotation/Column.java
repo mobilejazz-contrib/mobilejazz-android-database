@@ -27,6 +27,6 @@ public @interface Column {
 
 	String delegate() default "";
 
-	Class<? extends DataParser> parser() default IdentityParser.class;
+	Class<? extends DataParser<?>> parser() default IdentityParser.class;
 
 }
