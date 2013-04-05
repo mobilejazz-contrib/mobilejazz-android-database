@@ -740,12 +740,12 @@ public abstract class DataProvider extends ContentProvider {
 		for (String apiPath : filter.getApiPaths()) {
 			getDataAdapter().process(getContext(), account, filter.getTable(), apiPath, processor, null, null);
 		}
-		db.beginTransaction();
+		// db.beginTransaction();
 		try {
 			processor.performOperations();
-			db.setTransactionSuccessful();
+			// db.setTransactionSuccessful();
 		} finally {
-			db.endTransaction();
+			// db.endTransaction();
 			processor.notifyChanges();
 		}
 
