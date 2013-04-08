@@ -2,9 +2,9 @@ package cat.mobilejazz.database;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -13,6 +13,7 @@ import java.net.URLConnection;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BitmapFactory.Options;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.AsyncTask;
 import android.view.View;
@@ -55,6 +56,8 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	private Context mContext;
 	private ImageSetter<V> mImageSetter;
 
+	private int mMaxWidth;
+
 	public FetchImageTask(Context context, String imageUrl, String defaultUrl, V view, ImageSetter<V> imageSetter) {
 		super();
 		mContext = context;
@@ -73,8 +76,41 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 		mImageSetter = imageSetter;
 	}
 
+	public FetchImageTask(Context context, String imageUrl, int defaultDrawable, V view, ImageSetter<V> imageSetter,
+			int maxWidth) {
+		super();
+		mContext = context;
+		mImageUrl = imageUrl;
+		mDefaultDrawable = defaultDrawable;
+		mView = view;
+		mImageSetter = imageSetter;
+		mMaxWidth = maxWidth;
+	}
+
 	private File getCacheFile() {
 		return new File(mContext.getCacheDir(), mImageUrl);
+	}
+
+	private Bitmap decodeFile(File cacheFile) throws IOException {
+		InputStream in = new FileInputStream(cacheFile);
+
+		if (mMaxWidth > 0) {
+			BitmapFactory.Options options = new BitmapFactory.Options();
+			options.inJustDecodeBounds = true;
+			BitmapFactory.decodeStream(in, null, options);
+			in.close();
+			in = null;
+
+			// save width and height
+			int inWidth = options.outWidth;
+
+			Options opts = new Options();
+			opts.inSampleSize = (int) Math.ceil(inWidth / mMaxWidth);
+			return BitmapFactory.decodeStream(new FileInputStream(cacheFile), null, opts);
+		} else {
+			return BitmapFactory.decodeStream(in);
+		}
+
 	}
 
 	@Override
@@ -82,9 +118,9 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 		File cacheFile = getCacheFile();
 		if (cacheFile.exists()) {
 			try {
-				onPostExecute(BitmapFactory.decodeStream(new FileInputStream(cacheFile)));
+				onPostExecute(decodeFile(cacheFile));
 				cancel(true);
-			} catch (FileNotFoundException e) {
+			} catch (IOException e) {
 				// should not happen (see if)
 				Debug.logException(e);
 			}
@@ -105,7 +141,7 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 			OutputStream cache = new FileOutputStream(cacheFile);
 			IOUtils.copy(connection.getInputStream(), cache);
 
-			return BitmapFactory.decodeStream(new FileInputStream(cacheFile));
+			return decodeFile(cacheFile);
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -137,6 +173,11 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	public static <V> void fetchImage(Context context, String imageUrl, int defaultDrawable, V view,
 			ImageSetter<V> imageSetter) {
 		new FetchImageTask<V>(context, imageUrl, defaultDrawable, view, imageSetter).execute();
+	}
+
+	public static <V> void fetchImage(Context context, String imageUrl, int defaultDrawable, V view,
+			ImageSetter<V> imageSetter, int maxWidth) {
+		new FetchImageTask<V>(context, imageUrl, defaultDrawable, view, imageSetter, maxWidth).execute();
 	}
 
 	public static <V extends View> void fetchImage(String imageUrl, String defaultUrl, V view,
