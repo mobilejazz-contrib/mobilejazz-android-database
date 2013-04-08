@@ -19,8 +19,6 @@ import android.os.RemoteException;
 import android.support.v4.content.CursorLoader;
 import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.content.DataProvider;
-import cat.mobilejazz.database.content.EnabledCursorLoader;
-import cat.mobilejazz.database.content.LoaderParent;
 import cat.mobilejazz.utilities.format.StringFormatter;
 
 public class Select implements Parcelable {
@@ -217,10 +215,6 @@ public class Select implements Parcelable {
 
 	public CursorLoader newCursorLoader(Context context) {
 		return new CursorLoader(context, table, projection, selection, selectionArgs, sortOrder);
-	}
-
-	public EnabledCursorLoader newEnabledCursorLoader(LoaderParent parent) {
-		return new EnabledCursorLoader(parent, table, projection, selection, selectionArgs, sortOrder);
 	}
 
 	public int delete(ContentResolver provider) {
