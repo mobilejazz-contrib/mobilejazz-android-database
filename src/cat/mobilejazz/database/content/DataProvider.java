@@ -1,7 +1,6 @@
 package cat.mobilejazz.database.content;
 
 import java.io.IOException;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.http.auth.AuthenticationException;
 import org.json.JSONException;
@@ -204,7 +204,10 @@ public abstract class DataProvider extends ContentProvider {
 
 	protected abstract SQLiteOpenHelper getDatabaseHelper(Context context, Account account);
 
-	protected abstract DataAdapter getDataAdapter();
+	protected abstract DataAdapter newDataAdapter();
+
+	protected abstract JSONObject renderValues(ContentValues values, String table, int storageClass)
+			throws JSONException;
 
 	@Override
 	public boolean onCreate() {
@@ -400,7 +403,7 @@ public abstract class DataProvider extends ContentProvider {
 		try {
 			String json = customChangeValue;
 			if (json == null) {
-				JSONObject obj = getDataAdapter().renderValues(values, table, Storage.REMOTE);
+				JSONObject obj = renderValues(values, table, Storage.REMOTE);
 				json = obj.toString();
 			}
 
@@ -434,7 +437,7 @@ public abstract class DataProvider extends ContentProvider {
 			changes.put(Changes.COLUMN_TIMESTAMP, SQLUtils.formatTimestamp(new Date()));
 			changes.put(Changes.COLUMN_VALUES, json);
 			// changes.put(Changes.COLUMN_API_PATH, apiPath);
-			JSONObject info = getDataAdapter().renderValues(values, table, Storage.INFO);
+			JSONObject info = renderValues(values, table, Storage.INFO);
 			if (additionalData != null) {
 				try {
 					JSONObject addData = new JSONObject(additionalData);
@@ -728,25 +731,55 @@ public abstract class DataProvider extends ContentProvider {
 		}
 	}
 
+	private static class UpdateOperation {
+
+		private DataProcessor processor;
+		private DataAdapter adapter;
+
+	}
+
+	private ConcurrentHashMap<CollectionFilter, UpdateOperation> mUpdates = new ConcurrentHashMap<CollectionFilter, UpdateOperation>();
+
+	public void cancelUpdate(CollectionFilter filter) {
+		UpdateOperation uop = mUpdates.get(filter);
+		if (uop != null) {
+			uop.adapter.cancel();
+			uop.processor.cancel();
+		}
+	}
+
 	public void updateFromServer(Account account, CollectionFilter filter, ProgressListener listener, long expectedCount)
 			throws IOException, AuthenticationException {
 
 		Debug.info(String.format("%s - updating from reader: %s, %s", Thread.currentThread().getName(), account.name,
 				filter));
+
 		SQLiteDatabase db = getWritableDatabase(account);
-		DataProcessor processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
+
+		UpdateOperation uop = new UpdateOperation();
+		uop.processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
 				filter.getSelect());
+		uop.adapter = newDataAdapter();
+
+		UpdateOperation old = mUpdates.putIfAbsent(filter, uop);
+		if (old != null) {
+			return; // reject two updates with the same filter
+		}
 
 		for (String apiPath : filter.getApiPaths()) {
-			getDataAdapter().process(getContext(), account, filter.getTable(), apiPath, processor, null, null);
+			if (uop.adapter.isCancelled()) {
+				break;
+			}
+			uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
 		}
 		// db.beginTransaction();
 		try {
-			processor.performOperations();
+			uop.processor.performOperations();
 			// db.setTransactionSuccessful();
 		} finally {
 			// db.endTransaction();
-			processor.notifyChanges();
+			mUpdates.remove(filter);
+			uop.processor.notifyChanges();
 		}
 
 	}

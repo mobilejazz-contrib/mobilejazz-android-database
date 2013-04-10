@@ -3,8 +3,6 @@ package cat.mobilejazz.database.content;
 import java.io.IOException;
 
 import org.apache.http.auth.AuthenticationException;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import android.accounts.Account;
 import android.content.ContentValues;
@@ -22,6 +20,8 @@ public interface DataAdapter {
 	public void process(Context context, Account account, String table, String apiPath, DataAdapterListener listener,
 			Cursor localData, Cursor pendingChanges) throws IOException, AuthenticationException;
 
-	public JSONObject renderValues(ContentValues values, String table, int storageClass) throws JSONException;
+	public void cancel();
+
+	public boolean isCancelled();
 
 }

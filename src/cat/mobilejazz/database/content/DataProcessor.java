@@ -45,6 +45,8 @@ public class DataProcessor implements DataAdapterListener {
 
 	private Select mCurrentSelection;
 
+	private boolean mCancelled;
+
 	private LinkedHashMap<String, SortedSet<DataEntry>> mOperations;
 	private Map<String, Integer> mDepthMap;
 
@@ -100,93 +102,106 @@ public class DataProcessor implements DataAdapterListener {
 	}
 
 	public void performOperations() {
-		Set<String> pendingDeletes = new HashSet<String>();
-		Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE, Changes.COLUMN_ID },
-				String.format("%s = ?", Changes.COLUMN_ACTION), new String[] { String.valueOf(Changes.ACTION_REMOVE) },
-				null, null, null);
-		if (pendingChanges.getCount() > 0) {
-			pendingChanges.moveToFirst();
-			while (!pendingChanges.isAfterLast()) {
-				pendingDeletes.add(getSignature(pendingChanges.getString(0), pendingChanges.getLong(1)));
-				pendingChanges.moveToNext();
+
+		if (!isCancelled()) {
+
+			Set<String> pendingDeletes = new HashSet<String>();
+			Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE,
+					Changes.COLUMN_ID }, String.format("%s = ?", Changes.COLUMN_ACTION),
+					new String[] { String.valueOf(Changes.ACTION_REMOVE) }, null, null, null);
+			if (pendingChanges.getCount() > 0) {
+				pendingChanges.moveToFirst();
+				while (!pendingChanges.isAfterLast()) {
+					pendingDeletes.add(getSignature(pendingChanges.getString(0), pendingChanges.getLong(1)));
+					pendingChanges.moveToNext();
+				}
 			}
-		}
-		pendingChanges.close();
+			pendingChanges.close();
 
-		Debug.debug("Pending deletes: ");
-		for (String s : pendingDeletes) {
-			Debug.debug("\t" + s);
-		}
-
-		String serverIdColumn = provider.getChangeIdColumn(mCurrentSelection.getTable());
-
-		double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
-
-		List<Map.Entry<String, SortedSet<DataEntry>>> operations = new ArrayList<Map.Entry<String, SortedSet<DataEntry>>>(
-				mOperations.entrySet());
-		Collections.sort(operations, new Comparator<Map.Entry<String, SortedSet<DataEntry>>>() {
-
-			@Override
-			public int compare(Entry<String, SortedSet<DataEntry>> lhs, Entry<String, SortedSet<DataEntry>> rhs) {
-				return mDepthMap.get(lhs.getKey()).compareTo(mDepthMap.get(rhs.getKey()));
+			Debug.debug("Pending deletes: ");
+			for (String s : pendingDeletes) {
+				Debug.debug("\t" + s);
 			}
 
-		});
-		for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
-			String table = e.getKey();
-			String changeIdColumn = provider.getChangeIdColumn(table);
+			String serverIdColumn = provider.getChangeIdColumn(mCurrentSelection.getTable());
 
-			if (table.equals(mMainTable)) {
+			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
-				Cursor current = mDb.query(mCurrentSelection.getTable(),
-						new String[] { BaseColumns._ID, serverIdColumn }, mCurrentSelection.getSelection(),
-						mCurrentSelection.getSelectionArgs(), null, null, serverIdColumn);
-				current.moveToFirst();
-				Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(), mCurrentSelection);
+			List<Map.Entry<String, SortedSet<DataEntry>>> operations = new ArrayList<Map.Entry<String, SortedSet<DataEntry>>>(
+					mOperations.entrySet());
+			Collections.sort(operations, new Comparator<Map.Entry<String, SortedSet<DataEntry>>>() {
 
-				CachedIterator<DataEntry> i = new CachedIterator<DataEntry>(e.getValue().iterator(), NO_DATA);
+				@Override
+				public int compare(Entry<String, SortedSet<DataEntry>> lhs, Entry<String, SortedSet<DataEntry>> rhs) {
+					return mDepthMap.get(lhs.getKey()).compareTo(mDepthMap.get(rhs.getKey()));
+				}
 
-				while (!current.isAfterLast() || !i.isAfterLast()) {
-					long currentServerId = getCurrentServerId(current);
-					DataEntry entry = i.getValue();
+			});
+			for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
 
-					Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
+				if (isCancelled()) {
+					break;
+				}
 
-					if (entry.serverId == currentServerId) {
-						// update:
-						mDb.update(table, entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-						i.moveToNext();
-						current.moveToNext();
-						mOperationsDone++;
-						mProgress += step;
-						mListener.onProgress(
-								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-								mProgress);
-					} else if (entry.serverId < currentServerId) {
-						// insert:
+				String table = e.getKey();
+				String changeIdColumn = provider.getChangeIdColumn(table);
+
+				if (table.equals(mMainTable)) {
+
+					Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID,
+							serverIdColumn }, mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(),
+							null, null, serverIdColumn);
+					current.moveToFirst();
+					Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(), mCurrentSelection);
+
+					CachedIterator<DataEntry> i = new CachedIterator<DataEntry>(e.getValue().iterator(), NO_DATA);
+
+					while ((!current.isAfterLast() || !i.isAfterLast()) && !isCancelled()) {
+						long currentServerId = getCurrentServerId(current);
+						DataEntry entry = i.getValue();
+
+						Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
+
+						if (entry.serverId == currentServerId) {
+							// update:
+							mDb.update(table, entry.values, "_id = ?",
+									new String[] { String.valueOf(current.getLong(0)) });
+							i.moveToNext();
+							current.moveToNext();
+							mOperationsDone++;
+							mProgress += step;
+							mListener.onProgress(
+									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+									mProgress);
+						} else if (entry.serverId < currentServerId) {
+							// insert:
+							if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
+								insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
+							}
+							i.moveToNext();
+							mOperationsDone++;
+							mProgress += step;
+							mListener.onProgress(
+									String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
+									mProgress);
+						} else {
+							// delete:
+							mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+							current.moveToNext();
+						}
+					}
+
+					current.close();
+				} else {
+					// process non maintable entries
+					for (DataEntry entry : e.getValue()) {
+						if (isCancelled()) {
+							break;
+						}
+						// no deletes are propagated along delegates:
 						if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
 							insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
 						}
-						i.moveToNext();
-						mOperationsDone++;
-						mProgress += step;
-						mListener.onProgress(
-								String.format("Processing %s data %d/%d...", mMainTable, mOperationsDone, mCount),
-								mProgress);
-					} else {
-						// delete:
-						mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
-						current.moveToNext();
-					}
-				}
-
-				current.close();
-			} else {
-				// process non maintable entries
-				for (DataEntry entry : e.getValue()) {
-					// no deletes are propagated along delegates:
-					if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-						insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
 					}
 				}
 			}
@@ -229,6 +244,14 @@ public class DataProcessor implements DataAdapterListener {
 			ResolvedUri resolvedUri = provider.resolveUri(uri);
 			provider.notifyChange(uri, resolvedUri);
 		}
+	}
+
+	public synchronized boolean isCancelled() {
+		return mCancelled;
+	}
+
+	public synchronized void cancel() {
+		mCancelled = true;
 	}
 
 }
