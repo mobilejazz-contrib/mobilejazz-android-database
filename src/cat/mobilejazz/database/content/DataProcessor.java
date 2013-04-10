@@ -140,6 +140,7 @@ public class DataProcessor implements DataAdapterListener {
 			for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
 
 				if (isCancelled()) {
+					Debug.debug("cancelled");
 					break;
 				}
 
@@ -196,6 +197,7 @@ public class DataProcessor implements DataAdapterListener {
 					// process non maintable entries
 					for (DataEntry entry : e.getValue()) {
 						if (isCancelled()) {
+							Debug.debug("cancelled");
 							break;
 						}
 						// no deletes are propagated along delegates:
@@ -205,6 +207,8 @@ public class DataProcessor implements DataAdapterListener {
 					}
 				}
 			}
+		} else {
+			Debug.debug("cancelled");
 		}
 
 		Debug.info("Operations done: " + mOperationsDone);
@@ -219,7 +223,6 @@ public class DataProcessor implements DataAdapterListener {
 		SortedSet<DataEntry> inserts = mOperations.get(table);
 		if (inserts == null) {
 			inserts = new TreeSet<DataEntry>();
-			Debug.warning("ENTERING: %s, %d", table, depth);
 			mOperations.put(table, inserts);
 			mDepthMap.put(table, depth);
 		}

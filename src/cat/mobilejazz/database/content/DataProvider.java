@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -741,15 +743,30 @@ public abstract class DataProvider extends ContentProvider {
 	private ConcurrentHashMap<CollectionFilter, UpdateOperation> mUpdates = new ConcurrentHashMap<CollectionFilter, UpdateOperation>();
 
 	public void cancelUpdate(CollectionFilter filter) {
+		Debug.info("Attempting to cancel");
 		UpdateOperation uop = mUpdates.get(filter);
 		if (uop != null) {
+			Debug.info("Cancelling %s", filter);
 			uop.adapter.cancel();
 			uop.processor.cancel();
 		}
 	}
 
-	public void updateFromServer(Account account, CollectionFilter filter, ProgressListener listener, long expectedCount)
-			throws IOException, AuthenticationException {
+	/**
+	 * Downloads data from the server and updates the local cache.
+	 * 
+	 * @param account
+	 * @param filter
+	 * @param listener
+	 * @param expectedCount
+	 * @return A {@link Collection} of aborted api paths.
+	 * @throws IOException
+	 * @throws AuthenticationException
+	 */
+	public Collection<String> updateFromServer(Account account, CollectionFilter filter, ProgressListener listener,
+			long expectedCount) throws IOException, AuthenticationException {
+
+		Collection<String> result = new HashSet<String>();
 
 		Debug.info(String.format("%s - updating from reader: %s, %s", Thread.currentThread().getName(), account.name,
 				filter));
@@ -763,19 +780,30 @@ public abstract class DataProvider extends ContentProvider {
 
 		UpdateOperation old = mUpdates.putIfAbsent(filter, uop);
 		if (old != null) {
-			return; // reject two updates with the same filter
+			return result; // reject two updates with the same filter
 		}
 
 		for (String apiPath : filter.getApiPaths()) {
+			uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
 			if (uop.adapter.isCancelled()) {
+				result.add(apiPath);
 				break;
 			}
-			uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
 		}
 		// db.beginTransaction();
 		try {
-			uop.processor.performOperations();
-			// db.setTransactionSuccessful();
+			if (!uop.processor.isCancelled()) {
+				uop.processor.performOperations();
+				// db.setTransactionSuccessful();
+
+				if (uop.processor.isCancelled()) {
+					for (String apiPath : filter.getApiPaths()) {
+						result.add(apiPath);
+					}
+				}
+			}
+
+			return result;
 		} finally {
 			// db.endTransaction();
 			mUpdates.remove(filter);
