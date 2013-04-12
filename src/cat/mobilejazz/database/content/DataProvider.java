@@ -204,12 +204,16 @@ public abstract class DataProvider extends ContentProvider {
 
 	protected abstract String getAuthority();
 
-	protected abstract SQLiteOpenHelper getDatabaseHelper(Context context, Account account);
+	protected abstract SQLiteOpenHelper getDatabaseHelper(Context context, Account account, String dbName);
 
 	protected abstract DataAdapter newDataAdapter();
 
 	protected abstract JSONObject renderValues(ContentValues values, String table, int storageClass)
 			throws JSONException;
+
+	protected String getDatabaseId(Account account) {
+		return account.name;
+	}
 
 	@Override
 	public boolean onCreate() {
@@ -238,39 +242,22 @@ public abstract class DataProvider extends ContentProvider {
 
 	private SQLiteOpenHelper getDatabaseHelper(Account account) {
 		synchronized (mDatabaseHelpers) {
-			SQLiteOpenHelper dbHelper = mDatabaseHelpers.get(account.name);
+			String databaseId = getDatabaseId(account);
+			SQLiteOpenHelper dbHelper = mDatabaseHelpers.get(databaseId);
 			if (dbHelper == null) {
-				dbHelper = getDatabaseHelper(getContext(), account);
-				mDatabaseHelpers.put(account.name, dbHelper);
+				dbHelper = getDatabaseHelper(getContext(), account, databaseId);
+				mDatabaseHelpers.put(databaseId, dbHelper);
 			}
 			return dbHelper;
 		}
 	}
 
-	private SQLiteDatabase getReadableDatabase(Account user) {
-		long start = System.currentTimeMillis();
-		SQLiteDatabase result = getDatabaseHelper(user).getReadableDatabase();
-		long time = System.currentTimeMillis() - start;
-		if (time < 10) {
-		} else if (time < 100) {
-			Debug.warning("%s waited %d ms for readable database", Thread.currentThread().getName(), time);
-		} else {
-			Debug.error("%s waited %d ms for readable database", Thread.currentThread().getName(), time);
-		}
-		return result;
+	private SQLiteDatabase getReadableDatabase(Account account) {
+		return getDatabaseHelper(account).getReadableDatabase();
 	}
 
-	private SQLiteDatabase getWritableDatabase(Account user) {
-		long start = System.currentTimeMillis();
-		SQLiteDatabase result = getDatabaseHelper(user).getWritableDatabase();
-		long time = System.currentTimeMillis() - start;
-		if (time < 10) {
-		} else if (time < 100) {
-			Debug.warning("%s waited %d ms for writable database", Thread.currentThread().getName(), time);
-		} else {
-			Debug.error("%s waited %d ms for writable database", Thread.currentThread().getName(), time);
-		}
-		return result;
+	private SQLiteDatabase getWritableDatabase(Account account) {
+		return getDatabaseHelper(account).getWritableDatabase();
 	}
 
 	public List<Uri> getDependencies(Uri uri, ResolvedUri resolvedUri) {
