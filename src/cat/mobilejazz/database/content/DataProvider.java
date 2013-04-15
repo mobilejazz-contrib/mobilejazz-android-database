@@ -727,11 +727,43 @@ public abstract class DataProvider extends ContentProvider {
 
 	}
 
-	private ConcurrentHashMap<CollectionFilter, UpdateOperation> mUpdates = new ConcurrentHashMap<CollectionFilter, UpdateOperation>();
+	private static class UpdateKey {
 
-	public void cancelUpdate(CollectionFilter filter) {
+		private String database;
+		private CollectionFilter filter;
+
+		public UpdateKey(String database, CollectionFilter filter) {
+			this.database = database;
+			this.filter = filter;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			try {
+				if (o == null) {
+					return false;
+				}
+
+				UpdateKey uk = (UpdateKey) o;
+				return database.equals(uk.database) && filter.equals(uk.filter);
+
+			} catch (ClassCastException e) {
+				return false;
+			}
+		}
+
+		@Override
+		public int hashCode() {
+			return database.hashCode() + filter.hashCode();
+		}
+
+	}
+
+	private ConcurrentHashMap<UpdateKey, UpdateOperation> mUpdates = new ConcurrentHashMap<UpdateKey, UpdateOperation>();
+
+	public void cancelUpdate(Account account, CollectionFilter filter) {
 		Debug.info("Attempting to cancel");
-		UpdateOperation uop = mUpdates.get(filter);
+		UpdateOperation uop = mUpdates.get(new UpdateKey(getDatabaseId(account), filter));
 		if (uop != null) {
 			Debug.info("Cancelling %s", filter);
 			uop.adapter.cancel();
@@ -765,7 +797,7 @@ public abstract class DataProvider extends ContentProvider {
 				filter.getSelect());
 		uop.adapter = newDataAdapter();
 
-		UpdateOperation old = mUpdates.putIfAbsent(filter, uop);
+		UpdateOperation old = mUpdates.putIfAbsent(new UpdateKey(getDatabaseId(account), filter), uop);
 		if (old != null) {
 			return result; // reject two updates with the same filter
 		}
