@@ -6,9 +6,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -16,6 +16,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.AsyncTask;
+import android.util.DisplayMetrics;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -49,6 +50,18 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 
 	}
 
+	public static class ImageOptions {
+
+		public int maxWidth;
+		public int sourceDensity;
+
+		public ImageOptions() {
+			maxWidth = 0;
+			sourceDensity = DisplayMetrics.DENSITY_DEFAULT;
+		}
+
+	}
+
 	private String mImageUrl;
 	private String mDefaultUrl;
 	private int mDefaultDrawable;
@@ -56,7 +69,7 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	private Context mContext;
 	private ImageSetter<V> mImageSetter;
 
-	private int mMaxWidth;
+	private ImageOptions mOptions;
 
 	public FetchImageTask(Context context, String imageUrl, String defaultUrl, V view, ImageSetter<V> imageSetter) {
 		super();
@@ -68,47 +81,48 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	}
 
 	public FetchImageTask(Context context, String imageUrl, int defaultDrawable, V view, ImageSetter<V> imageSetter) {
-		super();
-		mContext = context;
-		mImageUrl = imageUrl;
-		mDefaultDrawable = defaultDrawable;
-		mView = view;
-		mImageSetter = imageSetter;
+		this(context, imageUrl, defaultDrawable, view, imageSetter, new ImageOptions());
 	}
 
 	public FetchImageTask(Context context, String imageUrl, int defaultDrawable, V view, ImageSetter<V> imageSetter,
-			int maxWidth) {
+			ImageOptions options) {
 		super();
 		mContext = context;
 		mImageUrl = imageUrl;
 		mDefaultDrawable = defaultDrawable;
 		mView = view;
 		mImageSetter = imageSetter;
-		mMaxWidth = maxWidth;
+		mOptions = options;
 	}
 
 	private File getCacheFile() {
 		return new File(mContext.getCacheDir(), mImageUrl);
 	}
 
+	private Options getBitmapOptions() {
+		Options options = new Options();
+		options.inDensity = mOptions.sourceDensity;
+		options.inTargetDensity = mContext.getResources().getDisplayMetrics().densityDpi;
+		return options;
+	}
+
 	private Bitmap decodeFile(File cacheFile) throws IOException {
 		InputStream in = new FileInputStream(cacheFile);
 
-		if (mMaxWidth > 0) {
-			BitmapFactory.Options options = new BitmapFactory.Options();
+		if (mOptions.maxWidth > 0) {
+			Options options = getBitmapOptions();
 			options.inJustDecodeBounds = true;
 			BitmapFactory.decodeStream(in, null, options);
 			in.close();
 			in = null;
-
 			// save width and height
 			int inWidth = options.outWidth;
 
-			Options opts = new Options();
-			opts.inSampleSize = (int) Math.ceil(inWidth / mMaxWidth);
-			return BitmapFactory.decodeStream(new FileInputStream(cacheFile), null, opts);
+			options = getBitmapOptions();
+			options.inSampleSize = (int) Math.ceil(inWidth / mOptions.maxWidth);
+			return BitmapFactory.decodeStream(new FileInputStream(cacheFile), null, options);
 		} else {
-			return BitmapFactory.decodeStream(in);
+			return BitmapFactory.decodeStream(in, null, getBitmapOptions());
 		}
 
 	}
@@ -129,12 +143,13 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 
 	@Override
 	protected Bitmap doInBackground(Void... params) {
+		File cacheFile = getCacheFile();
 		try {
 			URL imageUrl = new URL(mImageUrl);
-			URLConnection connection = imageUrl.openConnection();
+			HttpURLConnection connection = (HttpURLConnection) imageUrl.openConnection();
 			connection.setUseCaches(true);
-
-			File cacheFile = getCacheFile();
+			connection.setInstanceFollowRedirects(true);
+			
 			if (!cacheFile.getParentFile().exists()) {
 				cacheFile.getParentFile().mkdirs();
 			}
@@ -143,8 +158,14 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 
 			return decodeFile(cacheFile);
 		} catch (MalformedURLException e) {
+			if (cacheFile.exists()) {
+				cacheFile.delete();
+			}
 			e.printStackTrace();
 		} catch (IOException e) {
+			if (cacheFile.exists()) {
+				cacheFile.delete();
+			}
 			e.printStackTrace();
 		}
 		return null;
@@ -176,8 +197,8 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	}
 
 	public static <V> void fetchImage(Context context, String imageUrl, int defaultDrawable, V view,
-			ImageSetter<V> imageSetter, int maxWidth) {
-		new FetchImageTask<V>(context, imageUrl, defaultDrawable, view, imageSetter, maxWidth).execute();
+			ImageSetter<V> imageSetter, ImageOptions options) {
+		new FetchImageTask<V>(context, imageUrl, defaultDrawable, view, imageSetter, options).execute();
 	}
 
 	public static <V extends View> void fetchImage(String imageUrl, String defaultUrl, V view,
