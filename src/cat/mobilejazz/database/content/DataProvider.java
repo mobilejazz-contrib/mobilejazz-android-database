@@ -797,7 +797,8 @@ public abstract class DataProvider extends ContentProvider {
 				filter.getSelect());
 		uop.adapter = newDataAdapter();
 
-		UpdateOperation old = mUpdates.putIfAbsent(new UpdateKey(getDatabaseId(account), filter), uop);
+		UpdateKey upkey = new UpdateKey(getDatabaseId(account), filter);
+		UpdateOperation old = mUpdates.putIfAbsent(upkey, uop);
 		if (old != null) {
 			return result; // reject two updates with the same filter
 		}
@@ -825,7 +826,7 @@ public abstract class DataProvider extends ContentProvider {
 			return result;
 		} finally {
 			// db.endTransaction();
-			mUpdates.remove(filter);
+			mUpdates.remove(upkey);
 			uop.processor.notifyChanges();
 		}
 
