@@ -9,6 +9,15 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -61,6 +70,22 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 		}
 
 	}
+
+	private static TrustManager sTrustAll = new X509TrustManager() {
+
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+		}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+		}
+
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {
+			return null;
+		}
+	};
 
 	private String mImageUrl;
 	private String mDefaultUrl;
@@ -144,29 +169,42 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	@Override
 	protected Bitmap doInBackground(Void... params) {
 		File cacheFile = getCacheFile();
+		OutputStream cache = null;
 		try {
 			URL imageUrl = new URL(mImageUrl);
 			HttpURLConnection connection = (HttpURLConnection) imageUrl.openConnection();
-			connection.setUseCaches(true);
-			connection.setInstanceFollowRedirects(true);
-			
+			//connection.setUseCaches(true);
+			//connection.setInstanceFollowRedirects(true);
+
+			if (connection instanceof HttpsURLConnection) {
+				SSLContext sslCtx = SSLContext.getInstance("TLS");
+				sslCtx.init(null, new TrustManager[] { sTrustAll }, null);
+
+				((HttpsURLConnection) connection).setSSLSocketFactory(sslCtx.getSocketFactory());
+			}
+
 			if (!cacheFile.getParentFile().exists()) {
 				cacheFile.getParentFile().mkdirs();
 			}
-			OutputStream cache = new FileOutputStream(cacheFile);
+			cache = new FileOutputStream(cacheFile);
 			IOUtils.copy(connection.getInputStream(), cache);
 
 			return decodeFile(cacheFile);
 		} catch (MalformedURLException e) {
-			if (cacheFile.exists()) {
-				cacheFile.delete();
-			}
-			e.printStackTrace();
+			Debug.error("Could not retrieve image from %s", mImageUrl);
+			Debug.logException(e);
 		} catch (IOException e) {
-			if (cacheFile.exists()) {
-				cacheFile.delete();
-			}
-			e.printStackTrace();
+			Debug.error("Could not retrieve image from %s", mImageUrl);
+			Debug.logException(e);
+		} catch (KeyManagementException e) {
+			Debug.error("Could not retrieve image from %s", mImageUrl);
+			Debug.logException(e);
+		} catch (NoSuchAlgorithmException e) {
+			Debug.error("Could not retrieve image from %s", mImageUrl);
+			Debug.logException(e);
+		}
+		if (cacheFile.exists()) {
+			cacheFile.delete();
 		}
 		return null;
 	}
