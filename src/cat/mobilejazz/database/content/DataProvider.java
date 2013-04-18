@@ -798,36 +798,39 @@ public abstract class DataProvider extends ContentProvider {
 		uop.adapter = newDataAdapter();
 
 		UpdateKey upkey = new UpdateKey(getDatabaseId(account), filter);
+
 		UpdateOperation old = mUpdates.putIfAbsent(upkey, uop);
 		if (old != null) {
 			return result; // reject two updates with the same filter
 		}
-
-		for (String apiPath : filter.getApiPaths()) {
-			uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
-			if (uop.adapter.isCancelled()) {
-				result.add(apiPath);
-				break;
-			}
-		}
-		// db.beginTransaction();
 		try {
-			if (!uop.processor.isCancelled()) {
-				uop.processor.performOperations();
-				// db.setTransactionSuccessful();
-
-				if (uop.processor.isCancelled()) {
-					for (String apiPath : filter.getApiPaths()) {
-						result.add(apiPath);
-					}
+			for (String apiPath : filter.getApiPaths()) {
+				uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
+				if (uop.adapter.isCancelled()) {
+					result.add(apiPath);
+					break;
 				}
 			}
+			// db.beginTransaction();
+			try {
+				if (!uop.processor.isCancelled()) {
+					uop.processor.performOperations();
+					// db.setTransactionSuccessful();
 
-			return result;
+					if (uop.processor.isCancelled()) {
+						for (String apiPath : filter.getApiPaths()) {
+							result.add(apiPath);
+						}
+					}
+				}
+
+				return result;
+			} finally {
+				// db.endTransaction();
+				uop.processor.notifyChanges();
+			}
 		} finally {
-			// db.endTransaction();
 			mUpdates.remove(upkey);
-			uop.processor.notifyChanges();
 		}
 
 	}
