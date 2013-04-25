@@ -387,6 +387,8 @@ public abstract class DataProvider extends ContentProvider {
 		return BaseColumns._ID;
 	}
 
+	protected abstract String getCreationDateColumn(String table);
+
 	protected ContentValues getChanges(SQLiteDatabase db, int action, String table, long id, ContentValues values,
 			String customChangeValue, String additionalData) {
 		try {
@@ -803,6 +805,9 @@ public abstract class DataProvider extends ContentProvider {
 		if (old != null) {
 			return result; // reject two updates with the same filter
 		}
+
+		Date startTime = new Date();
+
 		try {
 			for (String apiPath : filter.getApiPaths()) {
 				uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
@@ -814,7 +819,7 @@ public abstract class DataProvider extends ContentProvider {
 			// db.beginTransaction();
 			try {
 				if (!uop.processor.isCancelled()) {
-					uop.processor.performOperations();
+					uop.processor.performOperations(startTime);
 					// db.setTransactionSuccessful();
 
 					if (uop.processor.isCancelled()) {

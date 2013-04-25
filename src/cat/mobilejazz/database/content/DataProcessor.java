@@ -3,6 +3,7 @@ package cat.mobilejazz.database.content;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -20,7 +21,9 @@ import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.provider.BaseColumns;
+import android.text.TextUtils;
 import cat.mobilejazz.database.ProgressListener;
+import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
 import cat.mobilejazz.database.content.DataProvider.ResolvedUri;
 import cat.mobilejazz.database.query.Select;
@@ -101,7 +104,7 @@ public class DataProcessor implements DataAdapterListener {
 		}
 	}
 
-	public void performOperations() {
+	public void performOperations(Date startTime) {
 
 		if (!isCancelled()) {
 
@@ -124,6 +127,7 @@ public class DataProcessor implements DataAdapterListener {
 			}
 
 			String serverIdColumn = provider.getChangeIdColumn(mCurrentSelection.getTable());
+			String creationDateColumn = provider.getCreationDateColumn(mCurrentSelection.getTable());
 
 			double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
 
@@ -149,9 +153,11 @@ public class DataProcessor implements DataAdapterListener {
 
 				if (table.equals(mMainTable)) {
 
-					Cursor current = mDb.query(mCurrentSelection.getTable(), new String[] { BaseColumns._ID,
-							serverIdColumn }, mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(),
-							null, null, serverIdColumn);
+					String[] projection = !TextUtils.isEmpty(creationDateColumn) ? new String[] { BaseColumns._ID,
+							serverIdColumn, creationDateColumn } : new String[] { BaseColumns._ID, serverIdColumn };
+					Cursor current = mDb.query(mCurrentSelection.getTable(), projection,
+							mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(), null, null,
+							serverIdColumn);
 					current.moveToFirst();
 					Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(), mCurrentSelection);
 
@@ -187,7 +193,9 @@ public class DataProcessor implements DataAdapterListener {
 									mProgress);
 						} else {
 							// delete:
-							mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+							if (TextUtils.isEmpty(creationDateColumn)
+									|| SQLUtils.getTimestamp(current, 2).before(startTime))
+								mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
 							current.moveToNext();
 						}
 					}
