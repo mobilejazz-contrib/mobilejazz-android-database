@@ -44,6 +44,7 @@ import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Storage;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.View;
+import cat.mobilejazz.utilities.CompatibilityUtils;
 import cat.mobilejazz.utilities.debug.Debug;
 
 /**
@@ -816,11 +817,11 @@ public abstract class DataProvider extends ContentProvider {
 					break;
 				}
 			}
-			// db.beginTransaction();
+			CompatibilityUtils.beginTransactionNonExclusive(db);
 			try {
 				if (!uop.processor.isCancelled()) {
 					uop.processor.performOperations(startTime);
-					// db.setTransactionSuccessful();
+					db.setTransactionSuccessful();
 
 					if (uop.processor.isCancelled()) {
 						for (String apiPath : filter.getApiPaths()) {
@@ -831,7 +832,7 @@ public abstract class DataProvider extends ContentProvider {
 
 				return result;
 			} finally {
-				// db.endTransaction();
+				db.endTransaction();
 				uop.processor.notifyChanges();
 			}
 		} finally {
