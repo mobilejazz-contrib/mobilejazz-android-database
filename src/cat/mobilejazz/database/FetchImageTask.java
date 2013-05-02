@@ -25,6 +25,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.AsyncTask;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.view.View;
 import android.widget.ImageView;
@@ -75,10 +76,18 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 
 		@Override
 		public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+			Debug.debug("Check Client Trusted - Certificate chain: ");
+			for (int i = 0; i < chain.length; ++i) {
+				Debug.debug("%d. %s", i, chain[i].getSubjectDN().getName());
+			}
 		}
 
 		@Override
 		public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+			Debug.debug("Check Server Trusted - Certificate chain: ");
+			for (int i = 0; i < chain.length; ++i) {
+				Debug.debug("%d. %s", i, chain[i].getSubjectDN().getName());
+			}
 		}
 
 		@Override
@@ -121,7 +130,11 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	}
 
 	private File getCacheFile() {
-		return new File(mContext.getCacheDir(), mImageUrl);
+		if (!TextUtils.isEmpty(mImageUrl)) {
+			return new File(mContext.getCacheDir(), mImageUrl);
+		} else {
+			return null;
+		}
 	}
 
 	private Options getBitmapOptions() {
@@ -155,7 +168,10 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 	@Override
 	protected void onPreExecute() {
 		File cacheFile = getCacheFile();
-		if (cacheFile.exists()) {
+		if (cacheFile == null) {
+			onPostExecute(null);
+			cancel(true);
+		} else if (cacheFile.exists()) {
 			try {
 				onPostExecute(decodeFile(cacheFile));
 				cancel(true);
@@ -173,8 +189,8 @@ public class FetchImageTask<V> extends AsyncTask<Void, Void, Bitmap> {
 		try {
 			URL imageUrl = new URL(mImageUrl);
 			HttpURLConnection connection = (HttpURLConnection) imageUrl.openConnection();
-			//connection.setUseCaches(true);
-			//connection.setInstanceFollowRedirects(true);
+			// connection.setUseCaches(true);
+			// connection.setInstanceFollowRedirects(true);
 
 			if (connection instanceof HttpsURLConnection) {
 				SSLContext sslCtx = SSLContext.getInstance("TLS");
