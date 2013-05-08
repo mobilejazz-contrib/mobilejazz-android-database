@@ -15,6 +15,8 @@ public interface DataAdapter {
 
 		public void onDataEntry(String table, int depth, ContentValues data);
 
+		public void onEmptyTable(String table);
+
 	}
 
 	public void process(Context context, Account account, String table, String apiPath, DataAdapterListener listener,

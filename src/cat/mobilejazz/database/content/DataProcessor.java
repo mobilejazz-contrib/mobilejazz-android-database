@@ -141,6 +141,7 @@ public class DataProcessor implements DataAdapterListener {
 				}
 
 			});
+
 			for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
 
 				if (isCancelled()) {
@@ -263,6 +264,14 @@ public class DataProcessor implements DataAdapterListener {
 
 	public synchronized void cancel() {
 		mCancelled = true;
+	}
+
+	@Override
+	public void onEmptyTable(String table) {
+		if (!mOperations.containsKey(table)) {
+			mOperations.put(table, new TreeSet<DataEntry>());
+			mAffectedTables.add(table);
+		}
 	}
 
 }
