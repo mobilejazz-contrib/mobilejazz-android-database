@@ -11,7 +11,7 @@ public final class SQLUtils {
 
 	public static Date getTimestamp(Cursor cursor, int column) {
 		try {
-			return DateUtils.parseTimestamp(cursor.getString(column));
+			return DateUtils.get().parseTimestamp(cursor.getString(column));
 		} catch (ParseException e) {
 			Debug.logException(e);
 			return null;
@@ -20,7 +20,7 @@ public final class SQLUtils {
 
 	public static Date getDate(Cursor cursor, int column) {
 		try {
-			return DateUtils.parseDate(cursor.getString(column));
+			return DateUtils.get().parseDate(cursor.getString(column));
 		} catch (ParseException e) {
 			Debug.logException(e);
 			return null;
@@ -40,11 +40,11 @@ public final class SQLUtils {
 	}
 
 	public static String formatDate(Date value) {
-		return DateUtils.formatDate(value);
+		return DateUtils.get().formatDate(value);
 	}
 
 	public static String formatTimestamp(Date value) {
-		return DateUtils.formatTimestamp(value);
+		return DateUtils.get().formatTimestamp(value);
 	}
 
 	public static Long formatBoolean(Boolean value) {
@@ -97,7 +97,7 @@ public final class SQLUtils {
 		if (arg instanceof Boolean) {
 			return String.valueOf(formatBoolean((Boolean) arg));
 		} else if (arg instanceof Date) {
-			return DateUtils.formatDate((Date) arg);
+			return DateUtils.get().formatDate((Date) arg);
 		} else {
 			return String.valueOf(arg);
 		}

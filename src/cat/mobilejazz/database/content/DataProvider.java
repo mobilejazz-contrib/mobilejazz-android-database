@@ -351,8 +351,6 @@ public abstract class DataProvider extends ContentProvider {
 	@Override
 	public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
 		ResolvedUri resolvedUri = resolveUri(uri);
-		Log.i("perf", String.format("%s >> QUERY: %s, %s", Thread.currentThread().getName(), resolvedUri.table,
-				debugDateFormat.format(System.currentTimeMillis())));
 		SQLiteDatabase db = getReadableDatabase(resolvedUri.user);
 		Cursor cursor = db.query(resolvedUri.table, projection, resolvedUri.extendSelection(selection), selectionArgs,
 				resolvedUri.getString(QUERY_KEY_GROUP_BY), null, sortOrder);
@@ -366,8 +364,6 @@ public abstract class DataProvider extends ContentProvider {
 		}
 
 		cursor.setNotificationUri(getContext().getContentResolver(), uri);
-		Log.i("perf", String.format("%s << QUERY: %s, %s", Thread.currentThread().getName(), resolvedUri.table,
-				debugDateFormat.format(System.currentTimeMillis())));
 
 		return cursor;
 	}
