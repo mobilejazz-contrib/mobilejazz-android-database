@@ -414,9 +414,6 @@ public class DataProcessor implements DataAdapterListener {
 
 	@Override
 	public void onDataEntry(String table, int depth, ContentValues data) {
-		Debug.verbose(String.format("onDataEntry: %s, %s", table, data));
-		// mDb.insertWithOnConflict(table, null, data,
-		// SQLiteDatabase.CONFLICT_REPLACE);
 		SortedSet<DataEntry> inserts = mOperations.get(table);
 		if (inserts == null) {
 			inserts = new TreeSet<DataEntry>();

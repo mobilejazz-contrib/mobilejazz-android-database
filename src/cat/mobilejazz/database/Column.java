@@ -14,6 +14,8 @@ public class Column implements TreeObject {
 	private int affinity;
 	private String constraint;
 	private String name;
+	private String[] path;
+	private boolean hasPath;
 	private StringTemplate delegate;
 	private int storage;
 
@@ -38,6 +40,9 @@ public class Column implements TreeObject {
 		this.parent = parent;
 		this.delegate = new StringTemplate(delegate);
 		this.isUID = isUID;
+		
+		this.path = this.name.split("\\$");
+		this.hasPath = path.length > 1;
 	}
 
 	public boolean hasParser() {
@@ -70,6 +75,14 @@ public class Column implements TreeObject {
 
 	public String getName() {
 		return name;
+	}
+	
+	public String[] getPath() {
+		return path;
+	}
+	
+	public boolean hasPath() {
+		return hasPath;
 	}
 
 	public String getDeclaredName() {
