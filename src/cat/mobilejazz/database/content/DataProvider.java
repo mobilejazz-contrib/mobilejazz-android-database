@@ -44,6 +44,7 @@ import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Storage;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.View;
+import cat.mobilejazz.database.content.DataProcessor.DatabaseUpdateListener;
 import cat.mobilejazz.utilities.CompatibilityUtils;
 import cat.mobilejazz.utilities.debug.Debug;
 
@@ -782,7 +783,7 @@ public abstract class DataProvider extends ContentProvider {
 	 * @throws AuthenticationException
 	 */
 	public Collection<String> updateFromServer(Account account, CollectionFilter filter, ProgressListener listener,
-			long expectedCount) throws IOException, AuthenticationException {
+			long expectedCount, DatabaseUpdateListener updateListener) throws IOException, AuthenticationException {
 
 		Collection<String> result = new HashSet<String>();
 
@@ -793,7 +794,7 @@ public abstract class DataProvider extends ContentProvider {
 
 		UpdateOperation uop = new UpdateOperation();
 		uop.processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
-				filter.getSelect());
+				filter.getSelect(), updateListener);
 		uop.adapter = newDataAdapter();
 
 		UpdateKey upkey = new UpdateKey(getDatabaseId(account), filter);

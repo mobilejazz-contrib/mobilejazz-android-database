@@ -20,6 +20,11 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.Parcel;
+import android.os.Parcelable;
+import android.os.RemoteException;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
 import cat.mobilejazz.database.ProgressListener;
@@ -33,6 +38,174 @@ import cat.mobilejazz.utilities.debug.Debug;
 /* TODO: maybe outsource to tb project? */
 public class DataProcessor implements DataAdapterListener {
 
+	/**
+	 * After the data processor has updated the database, this interface allows
+	 * the UI to be notified of certain changes.
+	 * 
+	 * It has three methods that allow to narrow down the number of events, this
+	 * listener is informed of. Currently only REMOVE operations are supported.
+	 * 
+	 * @author Hannes Widmoser
+	 * 
+	 */
+	public static class DatabaseUpdateListener implements Parcelable {
+
+		public static final String KEY_TABLE = "table";
+		public static final String KEY_SERVER_ID = "server_id";
+
+		private String table;
+		private Long serverId;
+		private Integer type;
+		private Messenger messenger;
+
+		/**
+		 * Creates a new listener.
+		 * 
+		 * @param table
+		 *            The table this listener is interested in or {@code null}
+		 *            for all tables.
+		 * @param serverId
+		 *            The id of the item this listener is interested in or
+		 *            {@code null} for all items.
+		 * @param type
+		 *            The type of change this listener is interested in or
+		 *            {@code null} for all types. This must be one of
+		 *            {@link Changes#ACTION_CREATE},
+		 *            {@link Changes#ACTION_REMOVE},
+		 *            {@link Changes#ACTION_UPDATE}.
+		 * @param messenger
+		 *            A {@link Messenger} that gets notified of changes that
+		 *            match the filter criteria. The messenger receives a
+		 *            message where {@code what} refers to the type, and the
+		 *            bundle's {@link #KEY_TABLE}, {@link #KEY_SERVER_ID} refer
+		 *            to table and server id respectively.
+		 */
+		public DatabaseUpdateListener(String table, Long serverId, Integer type, Messenger messenger) {
+			super();
+			this.table = table;
+			this.serverId = serverId;
+			this.type = type;
+		}
+
+		/**
+		 * @return The table this listener is interested in or {@code null} for
+		 *         all tables.
+		 */
+		public String getTable() {
+			return table;
+		}
+
+		/**
+		 * @return The id of the item this listener is interested in or
+		 *         {@code null} for all items.
+		 */
+		public Long getServerId() {
+			return serverId;
+		}
+
+		/**
+		 * @return The type of change this listener is interested in or
+		 *         {@code null} for all types. This must be one of
+		 *         {@link Changes#ACTION_CREATE}, {@link Changes#ACTION_REMOVE},
+		 *         {@link Changes#ACTION_UPDATE}.
+		 */
+		public Integer getType() {
+			return type;
+		}
+
+		/**
+		 * Notifies the listener of a change in the database due to the last
+		 * action of the respective processor.
+		 * 
+		 * @param type
+		 *            The type of change in the database. Must be one of
+		 *            {@link Changes#ACTION_CREATE},
+		 *            {@link Changes#ACTION_REMOVE},
+		 *            {@link Changes#ACTION_UPDATE}.
+		 * @param table
+		 *            The table that was affected by the change.
+		 * @param serverId
+		 *            The serverId of the item that was affected.
+		 */
+		public void onDatabaseChange(int type, String table, long serverId) {
+			Message msg = Message.obtain();
+			msg.what = type;
+			msg.getData().putString(KEY_TABLE, table);
+			msg.getData().putLong(KEY_SERVER_ID, serverId);
+			try {
+				messenger.send(msg);
+			} catch (RemoteException e) {
+			}
+		}
+
+		@Override
+		public int describeContents() {
+			return 0;
+		}
+
+		@Override
+		public void writeToParcel(Parcel dest, int flags) {
+			dest.writeInt(type);
+			dest.writeString(table);
+			dest.writeLong(serverId);
+			dest.writeParcelable(messenger, flags);
+		}
+
+		private DatabaseUpdateListener(Parcel in) {
+			type = in.readInt();
+			table = in.readString();
+			serverId = in.readLong();
+			messenger = in.readParcelable(getClass().getClassLoader());
+		}
+
+		public static final Parcelable.Creator<DatabaseUpdateListener> CREATOR = new Parcelable.Creator<DatabaseUpdateListener>() {
+			public DatabaseUpdateListener createFromParcel(Parcel in) {
+				return new DatabaseUpdateListener(in);
+			}
+
+			public DatabaseUpdateListener[] newArray(int size) {
+				return new DatabaseUpdateListener[size];
+			}
+		};
+
+	}
+
+	// private static final class DatabaseUpdateListenerFilter {
+	//
+	// private String table;
+	// private Long serverId;
+	// private Integer type;
+	//
+	// public DatabaseUpdateListenerFilter(String table, Long serverId, Integer
+	// type) {
+	// this.table = table;
+	// this.serverId = serverId;
+	// this.type = type;
+	// }
+	//
+	// @Override
+	// public boolean equals(Object o) {
+	// if (o == null)
+	// return false;
+	// try {
+	// DatabaseUpdateListenerFilter f = (DatabaseUpdateListenerFilter) o;
+	// return ObjectUtils.equals(table, f.table) && ObjectUtils.equals(serverId,
+	// f.serverId)
+	// && ObjectUtils.equals(type, f.type);
+	// } catch (ClassCastException e) {
+	// return false;
+	// }
+	// }
+	//
+	// @Override
+	// public int hashCode() {
+	// return ((table != null) ? table.hashCode() : 0) + ((serverId != null) ?
+	// serverId.hashCode() : 0)
+	// + ((type != null) ? type.hashCode() : 0);
+	// }
+	//
+	// }
+
 	private SQLiteDatabase mDb;
 	private String mUser;
 	private Set<String> mAffectedTables;
@@ -44,7 +217,6 @@ public class DataProcessor implements DataAdapterListener {
 	private long mOperationsDone;
 	private long mCount;
 	private long mDownloadsDone;
-	private long mExpectedCount;
 
 	private Select mCurrentSelection;
 
@@ -55,8 +227,10 @@ public class DataProcessor implements DataAdapterListener {
 
 	private DataProvider provider;
 
+	private DatabaseUpdateListener updateListener;
+
 	public DataProcessor(DataProvider provider, String user, SQLiteDatabase db, ProgressListener listener,
-			String mainTable, long expectedCount, Select currentSelection) {
+			String mainTable, long expectedCount, Select currentSelection, DatabaseUpdateListener updateListener) {
 		this.provider = provider;
 		mDb = db;
 		mUser = user;
@@ -64,7 +238,6 @@ public class DataProcessor implements DataAdapterListener {
 		mOperations = new LinkedHashMap<String, SortedSet<DataEntry>>();
 		mDepthMap = new HashMap<String, Integer>();
 		mListener = listener;
-		mExpectedCount = expectedCount;
 		if (expectedCount > 0) {
 			mStepDownload = (2.0 / 3.0) / (double) expectedCount;
 		} else {
@@ -75,6 +248,8 @@ public class DataProcessor implements DataAdapterListener {
 		mOperationsDone = 0;
 		mMainTable = mainTable;
 		mCurrentSelection = currentSelection;
+
+		this.updateListener = updateListener;
 	}
 
 	@SuppressLint("DefaultLocale")
@@ -101,6 +276,17 @@ public class DataProcessor implements DataAdapterListener {
 			}
 		} catch (SQLiteConstraintException e) {
 			Debug.error("Constraint error inserting into %s, %s", table, values);
+		}
+	}
+
+	private boolean listenerIsInterestedIn(DatabaseUpdateListener l, int type, String table, long serverId) {
+		return (l.getType() == null || l.getType() == type) && (l.getServerId() == null || l.getServerId() == serverId)
+				&& (l.getTable() == null || table.equals(l.getTable()));
+	}
+
+	private void notifyUpdateListeners(int type, String table, long serverId) {
+		if (updateListener != null && listenerIsInterestedIn(updateListener, type, table, serverId)) {
+			updateListener.onDatabaseChange(type, table, serverId);
 		}
 	}
 
@@ -195,8 +381,10 @@ public class DataProcessor implements DataAdapterListener {
 						} else {
 							// delete:
 							if (TextUtils.isEmpty(creationDateColumn)
-									|| SQLUtils.getTimestamp(current, 2).before(startTime))
+									|| SQLUtils.getTimestamp(current, 2).before(startTime)) {
+								notifyUpdateListeners(Changes.ACTION_REMOVE, table, current.getLong(1));
 								mDb.delete(table, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+							}
 							current.moveToNext();
 						}
 					}
