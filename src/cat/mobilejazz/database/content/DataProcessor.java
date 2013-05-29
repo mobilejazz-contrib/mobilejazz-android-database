@@ -436,10 +436,12 @@ public class DataProcessor implements DataAdapterListener {
 	}
 
 	public void notifyChanges() {
-		for (String table : mAffectedTables) {
-			Uri uri = provider.getUri(mUser, table);
-			ResolvedUri resolvedUri = provider.resolveUri(uri);
-			provider.notifyChange(uri, resolvedUri);
+		if (mOperationsDone > 0) {
+			for (String table : mAffectedTables) {
+				Uri uri = provider.getUri(mUser, table);
+				ResolvedUri resolvedUri = provider.resolveUri(uri);
+				provider.notifyChange(uri, resolvedUri);
+			}
 		}
 	}
 
