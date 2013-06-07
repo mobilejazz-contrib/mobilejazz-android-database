@@ -356,13 +356,25 @@ public abstract class DataProvider extends ContentProvider {
 		Cursor cursor = db.query(resolvedUri.table, projection, resolvedUri.extendSelection(selection), selectionArgs,
 				resolvedUri.getString(QUERY_KEY_GROUP_BY), null, sortOrder);
 
-//		if (resolvedUri.table.equals(Changes.TABLE_NAME)) {
-//			Debug.verbose("%s - Query[%d]: %s, %s, %s, %s, %s", Thread.currentThread().getName(), cursor.getCount(),
-//					uri, Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder);
-//		} else {
-//			Debug.debug("%s - Query[%d]: %s, %s, %s, %s, %s", Thread.currentThread().getName(), cursor.getCount(), uri,
-//					Arrays.toString(projection), selection, Arrays.toString(selectionArgs), sortOrder);
-//		}
+		// if (resolvedUri.table.equals(Changes.TABLE_NAME)) {
+		// Debug.verbose("%s - Query[%d]: %s, %s, %s, %s, %s",
+		// Thread.currentThread().getName(), cursor.getCount(),
+		// uri, Arrays.toString(projection), selection,
+		// Arrays.toString(selectionArgs), sortOrder);
+		// } else {
+		// Debug.debug("%s - Query[%d]: %s, %s, %s, %s, %s",
+		// Thread.currentThread().getName(), cursor.getCount(), uri,
+		// Arrays.toString(projection), selection,
+		// Arrays.toString(selectionArgs), sortOrder);
+		// }
+
+		// try {
+		// if (resolvedUri.table.equals("projects"))
+		// Thread.sleep(5000);
+		// } catch (InterruptedException e) {
+		// // TODO Auto-generated catch block
+		// e.printStackTrace();
+		// }
 
 		cursor.setNotificationUri(getContext().getContentResolver(), uri);
 
@@ -593,6 +605,7 @@ public abstract class DataProvider extends ContentProvider {
 	public int delete(Uri uri, String selection, String[] selectionArgs) {
 		Debug.info("%s - Deleting %s (%s, %s)", Thread.currentThread().getName(), uri, selection,
 				Arrays.toString(selectionArgs));
+
 		ResolvedUri resolvedUri = resolveUri(uri);
 		Log.i("T - " + Thread.currentThread().getName(), ">> DELETE: " + resolvedUri.table);
 		SQLiteDatabase db = getWritableDatabase(resolvedUri.user);
@@ -615,11 +628,6 @@ public abstract class DataProvider extends ContentProvider {
 
 	@Override
 	public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
-
-		// if (values.containsKey(BaseColumns._ID)) {
-		// throw new RuntimeException();
-		// }
-
 		Debug.info("%s - Updating %s (%s, %s) with %s", Thread.currentThread().getName(), uri, selection,
 				Arrays.toString(selectionArgs), values);
 		ResolvedUri resolvedUri = resolveUri(uri);
