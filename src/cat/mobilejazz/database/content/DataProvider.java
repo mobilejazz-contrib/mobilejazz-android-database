@@ -816,7 +816,7 @@ public abstract class DataProvider extends ContentProvider {
 
 		try {
 			for (String apiPath : filter.getApiPaths()) {
-				uop.adapter.process(getContext(), account, filter.getTable(), apiPath, uop.processor, null, null);
+				uop.adapter.process(filter.getTable(), apiPath, uop.processor, null, null);
 				if (uop.adapter.isCancelled()) {
 					result.add(apiPath);
 					break;

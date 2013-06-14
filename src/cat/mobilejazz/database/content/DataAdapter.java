@@ -19,8 +19,8 @@ public interface DataAdapter {
 
 	}
 
-	public void process(Context context, Account account, String table, String apiPath, DataAdapterListener listener,
-			Cursor localData, Cursor pendingChanges) throws IOException, AuthenticationException;
+	public void process(String table, String apiPath, DataAdapterListener listener, Cursor localData,
+			Cursor pendingChanges) throws IOException, AuthenticationException;
 
 	public void cancel();
 
