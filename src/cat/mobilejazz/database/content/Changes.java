@@ -61,6 +61,24 @@ public class Changes implements BaseColumns {
 	public final static String COLUMN_ID = "obj_id";
 
 	/**
+	 * An uploaded change may be delayed to implement a back off strategy when
+	 * repeatedly trying to upload the change. This column stores the earliest
+	 * absolute date given as a timestamp ({@code long}) where the change may be
+	 * uploaded. If this is column is {@code NULL} the change can be uploaded
+	 * immediately.
+	 */
+	@Column(type = Type.LONG, affinity = Affinity.INTEGER)
+	public final static String COLUMN_DELAY_TO = "delay_to";
+
+	/**
+	 * Number of attempts that have been made to uplaod this change. Depending
+	 * on the synchronization strategy an application might want to drop the
+	 * change after trying to update it multiple times.
+	 */
+	@Column(type = Type.INT, affinity = Affinity.INTEGER)
+	public final static String COLUMN_TRIES = "tries";
+
+	/**
 	 * Column name for the changed values. This should already be prepared in a
 	 * way, that the server can understand it.
 	 * <p>
