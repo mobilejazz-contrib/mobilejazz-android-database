@@ -1,12 +1,12 @@
 package cat.mobilejazz.database;
 
+import com.google.compatibility.gson.JsonElement;
+
 import android.text.TextUtils;
 import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.StringTemplate;
 import cat.mobilejazz.utilities.format.SymbolTable;
 import cat.mobilejazz.utilities.format.TreeObject;
-
-import com.google.gson.JsonElement;
 
 public class Column implements TreeObject {
 
@@ -14,7 +14,7 @@ public class Column implements TreeObject {
 	private int affinity;
 	private String constraint;
 	private String name;
-	private String[] path;
+	private String[] path; 
 	private boolean hasPath;
 	private StringTemplate delegate;
 	private int storage;

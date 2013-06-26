@@ -1,6 +1,6 @@
 package cat.mobilejazz.database;
 
-import com.google.gson.JsonElement;
+import com.google.compatibility.gson.JsonElement;
 
 public interface DataParser<T> {
 
