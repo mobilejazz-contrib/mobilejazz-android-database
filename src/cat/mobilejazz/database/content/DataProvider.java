@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.http.auth.AuthenticationException;
 import org.json.JSONException;
@@ -200,6 +201,8 @@ public abstract class DataProvider extends ContentProvider {
 	private Boolean mAggregateNotifications = false;
 	private List<Notification> mNotifications;
 
+	private ConcurrentLinkedQueue<ChangesListener> mChangesListeners;
+
 	protected abstract Database getDatabase();
 
 	protected abstract String getAccountType();
@@ -219,6 +222,7 @@ public abstract class DataProvider extends ContentProvider {
 
 	@Override
 	public boolean onCreate() {
+		mChangesListeners = new ConcurrentLinkedQueue<ChangesListener>();
 		mDatabaseHelpers = new HashMap<String, SQLiteOpenHelper>();
 		mDependencies = new WeakHashMap<Uri, List<Uri>>();
 		mNotifications = new ArrayList<Notification>();
@@ -240,6 +244,14 @@ public abstract class DataProvider extends ContentProvider {
 		}
 
 		return true;
+	}
+
+	public void addChangesListener(ChangesListener listener) {
+		mChangesListeners.add(listener);
+	}
+
+	public void removeChangesListener(ChangesListener listener) {
+		mChangesListeners.remove(listener);
 	}
 
 	private SQLiteOpenHelper getDatabaseHelper(Account account) {
@@ -480,6 +492,9 @@ public abstract class DataProvider extends ContentProvider {
 				resolvedUri.getString(QUERY_KEY_CHANGE_VALUE), resolvedUri.getString(QUERY_KEY_ADDITIONAL_DATA));
 		if (changes != null) {
 			db.insert(Changes.TABLE_NAME, null, changes);
+			for (ChangesListener l : mChangesListeners) {
+				l.onInsertChange(changes);
+			}
 		}
 	}
 
