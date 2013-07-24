@@ -4,10 +4,7 @@ import java.io.IOException;
 
 import org.apache.http.auth.AuthenticationException;
 
-import android.accounts.Account;
 import android.content.ContentValues;
-import android.content.Context;
-import android.database.Cursor;
 
 public interface DataAdapter {
 
@@ -19,8 +16,24 @@ public interface DataAdapter {
 
 	}
 
-	public void process(String table, String apiPath, DataAdapterListener listener, Cursor localData,
-			Cursor pendingChanges) throws IOException, AuthenticationException;
+	/**
+	 * 
+	 * Downloads the data from the given api path and generates events on the
+	 * specified {@link DataAdapterListener}.
+	 * 
+	 * @param table
+	 *            The database table this api call corresponds to.
+	 * @param apiPath
+	 *            The api path on the server.
+	 * @param listener
+	 *            A {@link DataAdapterListener} that is notified when data
+	 *            arrives.
+	 * @return {@code true}, if data has been received, {@code false} otherwise.
+	 * @throws IOException
+	 * @throws AuthenticationException
+	 */
+	public void process(String table, String apiPath, DataAdapterListener listener) throws IOException,
+			AuthenticationException;
 
 	public void cancel();
 

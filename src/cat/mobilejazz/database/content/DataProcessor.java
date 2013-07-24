@@ -311,13 +311,6 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 
 		if (!isCancelled()) {
 
-			SortedSet<DataEntry> inserts = mOperations.get(mMainTable);
-			if (inserts == null) {
-				inserts = new TreeSet<DataEntry>();
-				mOperations.put(mMainTable, inserts);
-				mDepthMap.put(mMainTable, 0);
-			}
-
 			Set<String> pendingDeletes = null;
 
 			// TODO: this should be always empty
@@ -488,6 +481,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	public void onEmptyTable(String table) {
 		if (!mOperations.containsKey(table)) {
 			mOperations.put(table, new TreeSet<DataEntry>());
+			mDepthMap.put(table, 0);
 			mAffectedTables.add(table);
 		}
 	}
