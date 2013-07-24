@@ -311,6 +311,13 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 
 		if (!isCancelled()) {
 
+			SortedSet<DataEntry> inserts = mOperations.get(mMainTable);
+			if (inserts == null) {
+				inserts = new TreeSet<DataEntry>();
+				mOperations.put(mMainTable, inserts);
+				mDepthMap.put(mMainTable, 0);
+			}
+
 			Set<String> pendingDeletes = null;
 
 			// TODO: this should be always empty
