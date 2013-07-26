@@ -1,20 +1,14 @@
 package cat.mobilejazz.database.content;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import android.content.ContentProviderClient;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.os.RemoteException;
 import cat.mobilejazz.database.query.Select;
 import cat.mobilejazz.utilities.ObjectUtils;
-import cat.mobilejazz.utilities.debug.Debug;
 
 /**
  * This class defines a filter that spans the bridge between local filtering and
@@ -34,7 +28,7 @@ public class CollectionFilter implements Parcelable {
 
 	private String table;
 	private Select selection;
-	private String[] apiPaths;
+	private String apiPath;
 
 	private String formatString;
 	private int primaryIdIndex;
@@ -59,13 +53,13 @@ public class CollectionFilter implements Parcelable {
 	 *            api paths yields the same result as a query to the content
 	 *            provider with the given selection arguments.
 	 */
-	public CollectionFilter(Uri table, String selection, String[] selectionArgs, String[] apiPaths) {
-		this(new Select(table, null, selection, selectionArgs, null), apiPaths);
+	public CollectionFilter(Uri table, String selection, String[] selectionArgs, String apiPath) {
+		this(new Select(table, null, selection, selectionArgs, null), apiPath);
 	}
 
-	public CollectionFilter(Select select, String[] apiPaths) {
+	public CollectionFilter(Select select, String apiPath) {
 		this.selection = select;
-		this.apiPaths = apiPaths;
+		this.apiPath = apiPath;
 		// cache the table for performance:
 		this.table = this.selection.getTable();
 	}
@@ -107,55 +101,6 @@ public class CollectionFilter implements Parcelable {
 	}
 
 	private static final Pattern ID_PATTERN = Pattern.compile("%d");
-
-	private int countIdPatterns() {
-		int c = 0;
-		Matcher m = ID_PATTERN.matcher(formatString);
-		while (m.find())
-			c++;
-		return c;
-	}
-
-	/**
-	 * Generates a set of api paths by employing the previously provided
-	 * formatting string. You need to provide a table uri by your own since the
-	 * uri cannot be derived from the table string here.
-	 * 
-	 * @param tableUri
-	 *            Optional. If the items should be deleted before they are
-	 *            fetched from the server (to also reflect deletions in the
-	 *            local data).
-	 * @param provider
-	 * @throws RemoteException
-	 */
-	public boolean deriveApiPaths(Uri tableUri, ContentProviderClient provider) throws RemoteException {
-		int formatCount = countIdPatterns();
-		Object[] row = new Object[formatCount];
-		Cursor c = selection.query(provider);
-		apiPaths = new String[c.getCount()];
-		Collection<Long> ids = new ArrayList<Long>();
-		c.moveToFirst();
-
-		Debug.debug("Deriving from selection: %s", selection);
-
-		while (!c.isAfterLast() && c.getPosition() < apiPaths.length) {
-			for (int i = 0; i < row.length; ++i) {
-				row[i] = c.getLong(i);
-			}
-			ids.add(c.getLong(primaryIdIndex));
-			apiPaths[c.getPosition()] = String.format(formatString, row);
-			c.moveToNext();
-		}
-		c.close();
-
-		if (tableUri != null) {
-			selection = new Select.Builder(tableUri).constraintIn(primaryIdName, ids).build();
-		} else {
-			selection = null;
-		}
-
-		return apiPaths.length > 0;
-	}
 
 	public String getFormatString() {
 		return formatString;
@@ -209,14 +154,14 @@ public class CollectionFilter implements Parcelable {
 	 * 
 	 * @return The api path of this filter.
 	 */
-	public String[] getApiPaths() {
-		return apiPaths;
+	public String getApiPath() {
+		return apiPath;
 	}
 
 	@Override
 	public int hashCode() {
 		return ObjectUtils.hashCode(table) + ObjectUtils.hashCode(getSelection()) + Arrays.hashCode(getSelectionArgs())
-				+ Arrays.hashCode(apiPaths);
+				+ apiPath.hashCode();
 	}
 
 	@Override
@@ -229,8 +174,8 @@ public class CollectionFilter implements Parcelable {
 			}
 
 			return (ObjectUtils.equals(other.table, table) && ObjectUtils.equals(other.getSelection(), getSelection())
-					&& Arrays.equals(other.getSelectionArgs(), getSelectionArgs()) && Arrays.equals(other.apiPaths,
-					apiPaths));
+					&& Arrays.equals(other.getSelectionArgs(), getSelectionArgs()) && ObjectUtils.equals(other.apiPath,
+					apiPath));
 		} catch (ClassCastException e) {
 			return false;
 		}
@@ -238,13 +183,12 @@ public class CollectionFilter implements Parcelable {
 
 	@Override
 	public String toString() {
-		return String.format("%s, %s, %s, %s", Arrays.toString(apiPaths), table, getSelection(),
-				Arrays.toString(getSelectionArgs()));
+		return String.format("%s, %s, %s, %s", apiPath, table, getSelection(), Arrays.toString(getSelectionArgs()));
 	}
 
 	private CollectionFilter(Parcel in) {
 		selection = in.readParcelable(Select.class.getClassLoader());
-		apiPaths = in.createStringArray();
+		apiPath = in.readString();
 		formatString = in.readString();
 		table = in.readString();
 		primaryIdIndex = in.readInt();
@@ -259,7 +203,7 @@ public class CollectionFilter implements Parcelable {
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
 		dest.writeParcelable(selection, flags);
-		dest.writeStringArray(apiPaths);
+		dest.writeString(apiPath);
 		dest.writeString(formatString);
 		dest.writeString(table);
 		dest.writeInt(primaryIdIndex);

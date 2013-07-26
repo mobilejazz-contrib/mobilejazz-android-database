@@ -479,6 +479,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 
 	@Override
 	public void onEmptyTable(String table) {
+		Debug.info("onEmptyTable(%s)", table);
 		if (!mOperations.containsKey(table)) {
 			mOperations.put(table, new TreeSet<DataEntry>());
 			mDepthMap.put(table, 0);

@@ -830,12 +830,9 @@ public abstract class DataProvider extends ContentProvider {
 		Date startTime = new Date();
 
 		try {
-			for (String apiPath : filter.getApiPaths()) {
-				uop.adapter.process(filter.getTable(), apiPath, uop.processor);
-				if (uop.adapter.isCancelled()) {
-					result.add(apiPath);
-					break;
-				}
+			uop.adapter.process(filter.getTable(), filter.getApiPath(), uop.processor);
+			if (uop.adapter.isCancelled()) {
+				result.add(filter.getApiPath());
 			}
 			CompatibilityUtils.beginTransactionNonExclusive(db);
 			try {
@@ -844,9 +841,7 @@ public abstract class DataProvider extends ContentProvider {
 					db.setTransactionSuccessful();
 
 					if (uop.processor.isCancelled()) {
-						for (String apiPath : filter.getApiPaths()) {
-							result.add(apiPath);
-						}
+						result.add(filter.getApiPath());
 					}
 				}
 
