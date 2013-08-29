@@ -32,7 +32,7 @@ public interface DataAdapter {
 	 * @throws IOException
 	 * @throws AuthenticationException
 	 */
-	public void process(String table, String apiPath, DataAdapterListener listener) throws IOException,
+	public DataResult process(String table, String apiPath, DataAdapterListener listener) throws IOException,
 			AuthenticationException;
 
 	public void cancel();

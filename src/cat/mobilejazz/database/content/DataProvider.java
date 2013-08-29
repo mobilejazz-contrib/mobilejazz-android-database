@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -805,10 +804,10 @@ public abstract class DataProvider extends ContentProvider {
 	 * @throws IOException
 	 * @throws AuthenticationException
 	 */
-	public Collection<String> updateFromServer(Account account, CollectionFilter filter, ProgressListener listener,
+	public DataResult updateFromServer(Account account, CollectionFilter filter, ProgressListener listener,
 			long expectedCount, DatabaseUpdateListener updateListener) throws IOException, AuthenticationException {
 
-		Collection<String> result = new HashSet<String>();
+		DataResult result = DataResult.SUCCESS;
 
 		Debug.info(String.format("%s - updating from reader: %s, %s", Thread.currentThread().getName(), account.name,
 				filter));
@@ -824,15 +823,15 @@ public abstract class DataProvider extends ContentProvider {
 
 		UpdateOperation old = mUpdates.putIfAbsent(upkey, uop);
 		if (old != null) {
-			return result; // reject two updates with the same filter
+			return DataResult.REJECTED; // reject two updates with the same filter
 		}
 
 		Date startTime = new Date();
 
 		try {
-			uop.adapter.process(filter.getTable(), filter.getApiPath(), uop.processor);
+			result = uop.adapter.process(filter.getTable(), filter.getApiPath(), uop.processor);
 			if (uop.adapter.isCancelled()) {
-				result.add(filter.getApiPath());
+				result = DataResult.CANCELED;
 			}
 			CompatibilityUtils.beginTransactionNonExclusive(db);
 			try {
@@ -841,10 +840,9 @@ public abstract class DataProvider extends ContentProvider {
 					db.setTransactionSuccessful();
 
 					if (uop.processor.isCancelled()) {
-						result.add(filter.getApiPath());
+						result = DataResult.CANCELED;
 					}
 				}
-
 				return result;
 			} finally {
 				db.endTransaction();
