@@ -40,6 +40,7 @@ public class StaticFilter implements Filter {
 	@Override
 	public void setListener(FilterListener listener) {
 		// this filter is static. no need to inform listeners
+		listener.filterChanged();
 	}
 
 }
