@@ -8,7 +8,7 @@ public interface Storage {
 	public final static int LOCAL = 0;
 
 	/**
-	 * The contens of this column should also be sent to the server.
+	 * The contents of this column should also be sent to the server.
 	 */
 	public final static int REMOTE = 1;
 
