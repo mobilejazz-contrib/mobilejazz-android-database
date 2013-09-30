@@ -8,9 +8,12 @@ import java.util.Map;
 
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
+import cat.mobilejazz.database.annotation.CreationDate;
 import cat.mobilejazz.database.annotation.Local;
+import cat.mobilejazz.database.annotation.SyncId;
 import cat.mobilejazz.database.annotation.TableName;
 import cat.mobilejazz.database.annotation.UID;
+import cat.mobilejazz.database.content.DataProvider;
 import cat.mobilejazz.utilities.debug.Debug;
 import cat.mobilejazz.utilities.format.StringFormatter;
 import cat.mobilejazz.utilities.format.TreeObject;
@@ -26,6 +29,27 @@ public class Table implements TreeObject {
 	private Map<String, Column> columns;
 	private String name;
 	private String declaredName;
+
+	private Column syncId;
+	private Column creationDate;
+
+	private void setSyncIdColumn(Column c) {
+		if (syncId == null) {
+			syncId = c;
+		} else {
+			throw new IllegalArgumentException("Cannot set column " + c.getName()
+					+ " as sync id. There is already a sync id " + syncId.getName());
+		}
+	}
+
+	private void setCreationDateColumn(Column c) {
+		if (creationDate == null) {
+			creationDate = c;
+		} else {
+			throw new IllegalArgumentException("Cannot set column " + c.getName()
+					+ " as creation date. There is already a creation date " + syncId.getName());
+		}
+	}
 
 	public Table(Class<?> tableDescription) throws IllegalArgumentException, IllegalAccessException,
 			NoSuchFieldException, InstantiationException {
@@ -48,7 +72,7 @@ public class Table implements TreeObject {
 				String constraint = "PRIMARY KEY";
 				int storage = Storage.LOCAL;
 				String delegate = "";
-				DataParser parser = null;
+				DataParser<?> parser = null;
 				String defaultValue = "";
 				if (column != null) {
 					type = column.type();
@@ -64,8 +88,17 @@ public class Table implements TreeObject {
 						parser = column.parser().newInstance();
 					}
 				}
-				columns.put(columnName, new Column(type, affinity, constraint, storage, columnName, f.getName(),
-						delegate, defaultValue, parser, f.getAnnotation(UID.class) != null, this));
+				Column c = new Column(type, affinity, constraint, storage, columnName, f.getName(), delegate,
+						defaultValue, parser, f.getAnnotation(UID.class) != null, this);
+				columns.put(columnName, c);
+
+				if (f.getAnnotation(SyncId.class) != null) {
+					setSyncIdColumn(c);
+				}
+
+				if (f.getAnnotation(CreationDate.class) != null) {
+					setCreationDateColumn(c);
+				}
 			}
 		}
 		if (name == null) {
@@ -157,6 +190,36 @@ public class Table implements TreeObject {
 		} else {
 			throw new IllegalArgumentException(String.format("In Table %s: Column %s not found.", name, columnName));
 		}
+	}
+
+	/**
+	 * The synchronization id is used, when entities are compared with new
+	 * results from the server to determine which entities need to be deleted,
+	 * inserted or updated. It is assumed that this column uniquely identifies
+	 * the entity within the table.
+	 * 
+	 * @return The column representing the synchronization id.
+	 */
+	public Column getColumnSyncId() {
+		return syncId;
+	}
+	
+	public boolean hasColumnSyncId() {
+		return syncId != null;
+	}
+
+	/**
+	 * The creation date defines when a value was first entered into the
+	 * database. This field can be used to resolve synchronization issues.
+	 * 
+	 * @return The column representing the creation date.
+	 */
+	public Column getColumnCreationDate() {
+		return creationDate;
+	}
+	
+	public boolean hasColumnCreationDate() {
+		return creationDate != null;
 	}
 
 	@Override

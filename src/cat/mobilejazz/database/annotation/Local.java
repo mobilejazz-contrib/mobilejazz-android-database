@@ -10,9 +10,6 @@ import java.lang.annotation.Target;
  * recorded in the {@link DataProvider} for being later sent to the server. Use
  * this annotation for tables that are only used to store local data such as for
  * example a table with caching information ({@code Last-Modified}).
- * 
- * @author Hannes Widmoser
- * 
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
