@@ -44,6 +44,7 @@ import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Storage;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.View;
+import cat.mobilejazz.database.annotation.UID;
 import cat.mobilejazz.database.content.DataProcessor.DatabaseUpdateListener;
 import cat.mobilejazz.utilities.CompatibilityUtils;
 import cat.mobilejazz.utilities.debug.Debug;
@@ -559,6 +560,16 @@ public abstract class DataProvider extends ContentProvider {
 		return value + 1;
 	}
 
+	/**
+	 * Generates a new unique id value for the given column.
+	 * 
+	 * @param table
+	 *            The table where the column resides in.
+	 * @param column
+	 *            The column for which to create a uid.
+	 * @return A {@link long} value unique for the given table-column
+	 *         combination.
+	 */
 	public synchronized long newUID(String table, String column) {
 		SharedPreferences pref = getContext().getSharedPreferences("uid", Context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = pref.edit();
@@ -567,6 +578,22 @@ public abstract class DataProvider extends ContentProvider {
 		return maxValue;
 	}
 
+	/**
+	 * Adds a generated unique id for each column that is marked with the
+	 * {@link UID} annotation. Note that it only adds the id, if it is not
+	 * provided manually. When mixing manual with generated ids, it is
+	 * recommended to make sure, that {@link #firstUIDValue()} and
+	 * {@link #nextUIDValue(long)} are overridden in a way that makes it
+	 * impossible for manual and generated ids to collide as this is not taken
+	 * care of by this class. For example, generated ids could be restricted to
+	 * negative values, whereas manual ids only set positive values. It is up to
+	 * the application programmer to ensure this contract though.
+	 * 
+	 * @param table
+	 *            The table where the values are to be inserted.
+	 * @param values
+	 *            The content values.
+	 */
 	private void fillUIDs(String table, ContentValues values) {
 		String[] uids = mUIDs.get(table);
 		for (String uidColumn : uids) {
@@ -823,7 +850,8 @@ public abstract class DataProvider extends ContentProvider {
 
 		UpdateOperation old = mUpdates.putIfAbsent(upkey, uop);
 		if (old != null) {
-			return DataResult.REJECTED; // reject two updates with the same filter
+			return DataResult.REJECTED; // reject two updates with the same
+										// filter
 		}
 
 		Date startTime = new Date();

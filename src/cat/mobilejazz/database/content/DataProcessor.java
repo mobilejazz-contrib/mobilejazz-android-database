@@ -30,6 +30,7 @@ import android.provider.BaseColumns;
 import android.text.TextUtils;
 import cat.mobilejazz.database.ProgressListener;
 import cat.mobilejazz.database.SQLUtils;
+import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
 import cat.mobilejazz.database.content.DataProvider.ResolvedUri;
 import cat.mobilejazz.database.query.Select;
@@ -217,21 +218,21 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	private double mStepDownload;
 	private double mProgress;
 	private long mOperationsDone;
-	private long mCount;
 	private long mDownloadsDone;
 
 	private Select mCurrentSelection;
 
 	private boolean mCancelled;
 
-	private LinkedHashMap<String, SortedSet<DataEntry>> mOperations;
-	private Map<String, Integer> mDepthMap;
+	private LinkedHashMap<Table, SortedSet<DataEntry>> mOperations;
+	private Map<Table, Integer> mDepthMap;
 
 	private DataProvider provider;
 
 	private DatabaseUpdateListener updateListener;
 
 	private Set<String> mPendingUpdates;
+	private Set<String> mPendingDeletes;
 
 	public DataProcessor(DataProvider provider, String user, SQLiteDatabase db, ProgressListener listener,
 			String mainTable, long expectedCount, Select currentSelection, DatabaseUpdateListener updateListener) {
@@ -239,15 +240,14 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		mDb = db;
 		mUser = user;
 		mAffectedTables = new HashSet<String>();
-		mOperations = new LinkedHashMap<String, SortedSet<DataEntry>>();
-		mDepthMap = new HashMap<String, Integer>();
+		mOperations = new LinkedHashMap<Table, SortedSet<DataEntry>>();
+		mDepthMap = new HashMap<Table, Integer>();
 		mListener = listener;
 		if (expectedCount > 0) {
 			mStepDownload = (2.0 / 3.0) / (double) expectedCount;
 		} else {
 			mStepDownload = 0.0;
 		}
-		mCount = 0;
 		mDownloadsDone = 0;
 		mOperationsDone = 0;
 		mMainTable = mainTable;
@@ -307,11 +307,60 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		return result;
 	}
 
+	private void merge(Table table, SortedSet<DataEntry> operations, Date startTime) {
+
+		String syncIdCol = table.getColumnSyncId().getName();
+		String creationDateCol = table.getColumnCreationDate().toString();
+
+		String[] projection = table.hasColumnCreationDate() ? new String[] { BaseColumns._ID, syncIdCol,
+				creationDateCol } : new String[] { BaseColumns._ID, syncIdCol };
+		Cursor current = mDb.query(mCurrentSelection.getTable(), projection, mCurrentSelection.getSelection(),
+				mCurrentSelection.getSelectionArgs(), null, null, table.getColumnSyncId().getName());
+		try {
+			current.moveToFirst();
+			Debug.debug("[%d, %d] Querying: %s", current.getCount(), operations.size(), mCurrentSelection);
+
+			CachedIterator<DataEntry> i = new CachedIterator<DataEntry>(operations.iterator(), NO_DATA);
+
+			while ((!current.isAfterLast() || !i.isAfterLast()) && !isCancelled()) {
+				long currentServerId = getCurrentServerId(current);
+				DataEntry entry = i.getValue();
+
+				Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
+
+				if (entry.serverId == currentServerId) {
+					// update:
+					if (!mPendingUpdates.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
+						mDb.update(table.getName(), entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+					}
+					i.moveToNext();
+					current.moveToNext();
+				} else if (entry.serverId < currentServerId) {
+					// insert:
+					if (!mPendingDeletes.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
+						insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
+					}
+					i.moveToNext();
+				} else {
+					// delete:
+					if (currentServerId > 0
+							&& (TextUtils.isEmpty(creationDateCol) || SQLUtils.getTimestamp(current, 2).before(
+									startTime))) {
+						notifyUpdateListeners(Changes.ACTION_REMOVE, table.getName(), current.getLong(1));
+						mDb.delete(table.getName(), "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+					}
+					current.moveToNext();
+				}
+			}
+		} finally {
+			current.close();
+		}
+
+	}
+
 	public void performOperations(Date startTime) {
 
 		if (!isCancelled()) {
-
-			Set<String> pendingDeletes = null;
 
 			// TODO: this should be always empty
 			Cursor pendingChanges = mDb.query(Changes.TABLE_NAME, new String[] { Changes.COLUMN_TABLE,
@@ -321,94 +370,31 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 
 				mPendingUpdates = getPendingActions(pendingChanges, Changes.ACTION_UPDATE);
 				provider.addChangesListener(this);
-				pendingDeletes = getPendingActions(pendingChanges, Changes.ACTION_REMOVE);
+				mPendingDeletes = getPendingActions(pendingChanges, Changes.ACTION_REMOVE);
 
-				String serverIdColumn = provider.getChangeIdColumn(mCurrentSelection.getTable());
-				String creationDateColumn = provider.getCreationDateColumn(mCurrentSelection.getTable());
-
-				double step = (1.0 - mDownloadsDone * mStepDownload) / (double) mCount;
-
-				List<Map.Entry<String, SortedSet<DataEntry>>> operations = new ArrayList<Map.Entry<String, SortedSet<DataEntry>>>(
+				List<Map.Entry<Table, SortedSet<DataEntry>>> operations = new ArrayList<Map.Entry<Table, SortedSet<DataEntry>>>(
 						mOperations.entrySet());
-				Collections.sort(operations, new Comparator<Map.Entry<String, SortedSet<DataEntry>>>() {
+				Collections.sort(operations, new Comparator<Map.Entry<Table, SortedSet<DataEntry>>>() {
 
 					@Override
-					public int compare(Entry<String, SortedSet<DataEntry>> lhs, Entry<String, SortedSet<DataEntry>> rhs) {
+					public int compare(Entry<Table, SortedSet<DataEntry>> lhs, Entry<Table, SortedSet<DataEntry>> rhs) {
 						return mDepthMap.get(lhs.getKey()).compareTo(mDepthMap.get(rhs.getKey()));
 					}
 
 				});
 
-				for (Map.Entry<String, SortedSet<DataEntry>> e : operations) {
+				for (Map.Entry<Table, SortedSet<DataEntry>> e : operations) {
 
 					if (isCancelled()) {
 						Debug.debug("cancelled");
 						break;
 					}
 
-					String table = e.getKey();
-					String changeIdColumn = provider.getChangeIdColumn(table);
+					Table table = e.getKey();
+					String syncIdCol = table.getColumnSyncId().getName();
 
 					if (table.equals(mMainTable)) {
-
-						String[] projection = !TextUtils.isEmpty(creationDateColumn) ? new String[] { BaseColumns._ID,
-								serverIdColumn, creationDateColumn } : new String[] { BaseColumns._ID, serverIdColumn };
-						Cursor current = mDb.query(mCurrentSelection.getTable(), projection,
-								mCurrentSelection.getSelection(), mCurrentSelection.getSelectionArgs(), null, null,
-								serverIdColumn);
-						try {
-							current.moveToFirst();
-							Debug.debug("[%d, %d] Querying: %s", current.getCount(), e.getValue().size(),
-									mCurrentSelection);
-
-							CachedIterator<DataEntry> i = new CachedIterator<DataEntry>(e.getValue().iterator(),
-									NO_DATA);
-
-							while ((!current.isAfterLast() || !i.isAfterLast()) && !isCancelled()) {
-								long currentServerId = getCurrentServerId(current);
-								DataEntry entry = i.getValue();
-
-								Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
-
-								if (entry.serverId == currentServerId) {
-									// update:
-									if (!mPendingUpdates.contains(getSignature(table,
-											entry.values.getAsLong(changeIdColumn)))) {
-										mDb.update(table, entry.values, "_id = ?",
-												new String[] { String.valueOf(current.getLong(0)) });
-									}
-									i.moveToNext();
-									current.moveToNext();
-									mOperationsDone++;
-									mProgress += step;
-									mListener.onProgress(String.format("Processing %s data %d/%d...", mMainTable,
-											mOperationsDone, mCount), mProgress);
-								} else if (entry.serverId < currentServerId) {
-									// insert:
-									if (!pendingDeletes.contains(getSignature(table,
-											entry.values.getAsLong(changeIdColumn)))) {
-										insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
-									}
-									i.moveToNext();
-									mOperationsDone++;
-									mProgress += step;
-									mListener.onProgress(String.format("Processing %s data %d/%d...", mMainTable,
-											mOperationsDone, mCount), mProgress);
-								} else {
-									// delete:
-									if (currentServerId > 0
-											&& (TextUtils.isEmpty(creationDateColumn) || SQLUtils.getTimestamp(current,
-													2).before(startTime))) {
-										notifyUpdateListeners(Changes.ACTION_REMOVE, table, current.getLong(1));
-										mDb.delete(table, "_id = ?",
-												new String[] { String.valueOf(current.getLong(0)) });
-									}
-									current.moveToNext();
-								}
-							}
-						} finally {
-							current.close();
-						}
+						merge(table, e.getValue(), startTime);
 					} else {
 						// process non maintable entries
 						for (DataEntry entry : e.getValue()) {
@@ -417,8 +403,8 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 								break;
 							}
 							// no deletes are propagated along delegates:
-							if (!pendingDeletes.contains(getSignature(table, entry.values.getAsLong(changeIdColumn)))) {
-								insertOrUpdate(table, entry.values, changeIdColumn, entry.serverId);
+							if (!mPendingDeletes.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
+								insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
 							}
 						}
 					}
@@ -437,7 +423,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	}
 
 	@Override
-	public void onDataEntry(String table, int depth, ContentValues data) {
+	public void onDataEntry(Table table, int depth, ContentValues data) {
 		SortedSet<DataEntry> inserts = mOperations.get(table);
 		if (inserts == null) {
 			inserts = new TreeSet<DataEntry>();
@@ -445,12 +431,10 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 			mDepthMap.put(table, depth);
 		}
 
-		String changeIdColumn = provider.getChangeIdColumn(table);
+		String changeIdColumn = table.getColumnSyncId().getName();
 		inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
 
-		mCount++;
-
-		mAffectedTables.add(table);
+		mAffectedTables.add(table.getName());
 
 		if (table.equals(mMainTable) && mStepDownload > 0.0) {
 			mDownloadsDone++;
@@ -478,12 +462,12 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	}
 
 	@Override
-	public void onEmptyTable(String table) {
+	public void onEmptyTable(Table table) {
 		Debug.info("onEmptyTable(%s)", table);
 		if (!mOperations.containsKey(table)) {
 			mOperations.put(table, new TreeSet<DataEntry>());
 			mDepthMap.put(table, 0);
-			mAffectedTables.add(table);
+			mAffectedTables.add(table.getName());
 		}
 	}
 

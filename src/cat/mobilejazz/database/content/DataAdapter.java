@@ -5,14 +5,15 @@ import java.io.IOException;
 import org.apache.http.auth.AuthenticationException;
 
 import android.content.ContentValues;
+import cat.mobilejazz.database.Table;
 
 public interface DataAdapter {
 
 	public static interface DataAdapterListener {
 
-		public void onDataEntry(String table, int depth, ContentValues data);
+		public void onDataEntry(Table table, int depth, ContentValues data);
 
-		public void onEmptyTable(String table);
+		public void onEmptyTable(Table table);
 
 	}
 
