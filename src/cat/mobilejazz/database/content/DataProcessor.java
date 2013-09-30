@@ -215,10 +215,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 
 	private ProgressListener mListener;
 	private String mMainTable;
-	private double mStepDownload;
-	private double mProgress;
 	private long mOperationsDone;
-	private long mDownloadsDone;
 
 	private Select mCurrentSelection;
 
@@ -243,12 +240,6 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		mOperations = new LinkedHashMap<Table, SortedSet<DataEntry>>();
 		mDepthMap = new HashMap<Table, Integer>();
 		mListener = listener;
-		if (expectedCount > 0) {
-			mStepDownload = (2.0 / 3.0) / (double) expectedCount;
-		} else {
-			mStepDownload = 0.0;
-		}
-		mDownloadsDone = 0;
 		mOperationsDone = 0;
 		mMainTable = mainTable;
 		mCurrentSelection = currentSelection;
@@ -271,15 +262,17 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		}
 	}
 
-	private void insertOrUpdate(String table, ContentValues values, String identifyingColumn, long identifyingValue) {
+	private int insertOrUpdate(String table, ContentValues values, String identifyingColumn, long identifyingValue) {
 		try {
 			long result = mDb.insertWithOnConflict(table, null, values, SQLiteDatabase.CONFLICT_IGNORE);
 			if (result < 0L) {
 				// row exists already -> update:
 				mDb.update(table, values, String.format("%s = %d", identifyingColumn, identifyingValue), null);
 			}
+			return 1;
 		} catch (SQLiteConstraintException e) {
 			Debug.error("Constraint error inserting into %s, %s", table, values);
+			return 0;
 		}
 	}
 
@@ -331,14 +324,14 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				if (entry.serverId == currentServerId) {
 					// update:
 					if (!mPendingUpdates.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
-						mDb.update(table.getName(), entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+						mOperationsDone += mDb.update(table.getName(), entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });	
 					}
 					i.moveToNext();
 					current.moveToNext();
 				} else if (entry.serverId < currentServerId) {
 					// insert:
 					if (!mPendingDeletes.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
-						insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
+						mOperationsDone += insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
 					}
 					i.moveToNext();
 				} else {
@@ -347,7 +340,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 							&& (TextUtils.isEmpty(creationDateCol) || SQLUtils.getTimestamp(current, 2).before(
 									startTime))) {
 						notifyUpdateListeners(Changes.ACTION_REMOVE, table.getName(), current.getLong(1));
-						mDb.delete(table.getName(), "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+						mOperationsDone += mDb.delete(table.getName(), "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
 					}
 					current.moveToNext();
 				}
@@ -404,7 +397,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 							}
 							// no deletes are propagated along delegates:
 							if (!mPendingDeletes.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
-								insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
+								mOperationsDone += insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
 							}
 						}
 					}
@@ -435,12 +428,6 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
 
 		mAffectedTables.add(table.getName());
-
-		if (table.equals(mMainTable) && mStepDownload > 0.0) {
-			mDownloadsDone++;
-			mProgress += mStepDownload;
-			mListener.onProgress(String.format("Downloading %s data %d...", mMainTable, mDownloadsDone), mProgress);
-		}
 	}
 
 	public void notifyChanges() {
