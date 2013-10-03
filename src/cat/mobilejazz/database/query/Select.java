@@ -34,17 +34,22 @@ public class Select implements Parcelable {
 		private String valueOf(Object arg) {
 			return SQLUtils.valueOf(arg);
 		}
-		
+
 		private Builder(Select s) {
 			mTable = s.table;
-			mProjection = s.projection.clone();
+			if (s.projection != null)
+				mProjection = s.projection.clone();
 			mSelection = new ArrayList<String>();
-			for (String constraint : s.selection.split(" AND ")) {
-				mSelection.add(constraint);
+			if (s.selection != null) {
+				for (String constraint : s.selection.split(" AND ")) {
+					mSelection.add(constraint);
+				}
 			}
 			mSelectionArgs = new ArrayList<String>();
-			for (String arg : s.selectionArgs) {
-				mSelectionArgs.add(arg);
+			if (s.selectionArgs != null) {
+				for (String arg : s.selectionArgs) {
+					mSelectionArgs.add(arg);
+				}
 			}
 			mSortOrder = s.sortOrder;
 		}
@@ -266,7 +271,7 @@ public class Select implements Parcelable {
 	public Cursor query(ContentProvider provider) {
 		return provider.query(table, projection, selection, selectionArgs, sortOrder);
 	}
-	
+
 	public Select.Builder buildUpon() {
 		return new Select.Builder(this);
 	}
