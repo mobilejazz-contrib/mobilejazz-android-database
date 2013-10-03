@@ -27,7 +27,6 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.provider.BaseColumns;
-import android.text.TextUtils;
 import cat.mobilejazz.database.ProgressListener;
 import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Table;
@@ -214,7 +213,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	private Set<String> mAffectedTables;
 
 	private ProgressListener mListener;
-	private String mMainTable;
+	private Table mMainTable;
 	private long mOperationsDone;
 
 	private Select mCurrentSelection;
@@ -232,7 +231,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 	private Set<String> mPendingDeletes;
 
 	public DataProcessor(DataProvider provider, String user, SQLiteDatabase db, ProgressListener listener,
-			String mainTable, long expectedCount, Select currentSelection, DatabaseUpdateListener updateListener) {
+			Table mainTable, long expectedCount, Select currentSelection, DatabaseUpdateListener updateListener) {
 		this.provider = provider;
 		mDb = db;
 		mUser = user;
@@ -242,7 +241,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		mListener = listener;
 		mOperationsDone = 0;
 		mMainTable = mainTable;
-		mCurrentSelection = currentSelection;
+		mCurrentSelection = currentSelection.buildUpon().sort(mainTable.getColumnSyncId().getName()).build();
 
 		this.updateListener = updateListener;
 	}
@@ -300,15 +299,19 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 		return result;
 	}
 
-	private void merge(Table table, SortedSet<DataEntry> operations, Date startTime) {
+	private void merge(Table table, Select localData, SortedSet<DataEntry> operations, Date startTime) {
 
 		String syncIdCol = table.getColumnSyncId().getName();
-		String creationDateCol = table.getColumnCreationDate().toString();
 
-		String[] projection = table.hasColumnCreationDate() ? new String[] { BaseColumns._ID, syncIdCol,
-				creationDateCol } : new String[] { BaseColumns._ID, syncIdCol };
-		Cursor current = mDb.query(mCurrentSelection.getTable(), projection, mCurrentSelection.getSelection(),
-				mCurrentSelection.getSelectionArgs(), null, null, table.getColumnSyncId().getName());
+		List<String> projection = new ArrayList<String>();
+		projection.add(BaseColumns._ID);
+		projection.add(syncIdCol);
+		if (table.hasColumnCreationDate()) {
+			projection.add(table.getColumnCreationDate().toString());
+		}
+
+		Cursor current = mDb.query(localData.getTable(), projection.toArray(new String[] {}), localData.getSelection(),
+				localData.getSelectionArgs(), null, null, localData.getSortOrder());
 		try {
 			current.moveToFirst();
 			Debug.debug("[%d, %d] Querying: %s", current.getCount(), operations.size(), mCurrentSelection);
@@ -324,7 +327,8 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				if (entry.serverId == currentServerId) {
 					// update:
 					if (!mPendingUpdates.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
-						mOperationsDone += mDb.update(table.getName(), entry.values, "_id = ?", new String[] { String.valueOf(current.getLong(0)) });	
+						mOperationsDone += mDb.update(table.getName(), entry.values, "_id = ?",
+								new String[] { String.valueOf(current.getLong(0)) });
 					}
 					i.moveToNext();
 					current.moveToNext();
@@ -337,10 +341,11 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				} else {
 					// delete:
 					if (currentServerId > 0
-							&& (TextUtils.isEmpty(creationDateCol) || SQLUtils.getTimestamp(current, 2).before(
+							&& (table.hasColumnCreationDate() || SQLUtils.getTimestamp(current, 2).before(
 									startTime))) {
 						notifyUpdateListeners(Changes.ACTION_REMOVE, table.getName(), current.getLong(1));
-						mOperationsDone += mDb.delete(table.getName(), "_id = ?", new String[] { String.valueOf(current.getLong(0)) });
+						mOperationsDone += mDb.delete(table.getName(), "_id = ?",
+								new String[] { String.valueOf(current.getLong(0)) });
 					}
 					current.moveToNext();
 				}
@@ -387,17 +392,31 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 					String syncIdCol = table.getColumnSyncId().getName();
 
 					if (table.equals(mMainTable)) {
-						merge(table, e.getValue(), startTime);
+						merge(table, mCurrentSelection, e.getValue(), startTime);
 					} else {
+						long currentParentId = 0L;
 						// process non maintable entries
 						for (DataEntry entry : e.getValue()) {
 							if (isCancelled()) {
 								Debug.debug("cancelled");
 								break;
 							}
+
+							if (entry.getParentId() != currentParentId) {
+								currentParentId = entry.getParentId();
+								// delete all old entries. This is only possible
+								// if always ALL delegate entries of a parent
+								// entity are returned by the
+								// server.
+								mDb.delete(table.getParentTable(entry.values), table.getColumnParentId().getName() + " = ?",
+										new String[] { String.valueOf(currentParentId) });
+							}
+
 							// no deletes are propagated along delegates:
-							if (!mPendingDeletes.contains(getSignature(table.getName(), entry.values.getAsLong(syncIdCol)))) {
-								mOperationsDone += insertOrUpdate(table.getName(), entry.values, syncIdCol, entry.serverId);
+							if (!mPendingDeletes.contains(getSignature(table.getName(),
+									entry.values.getAsLong(syncIdCol)))) {
+								mOperationsDone += insertOrUpdate(table.getName(), entry.values, syncIdCol,
+										entry.serverId);
 							}
 						}
 					}

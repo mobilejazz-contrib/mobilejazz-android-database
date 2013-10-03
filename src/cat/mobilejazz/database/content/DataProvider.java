@@ -842,8 +842,8 @@ public abstract class DataProvider extends ContentProvider {
 		SQLiteDatabase db = getWritableDatabase(account);
 
 		UpdateOperation uop = new UpdateOperation();
-		uop.processor = new DataProcessor(this, account.name, db, listener, filter.getTable(), expectedCount,
-				filter.getSelect(), updateListener);
+		uop.processor = new DataProcessor(this, account.name, db, listener, getDatabase().getTable(filter.getTable()),
+				expectedCount, filter.getSelect(), updateListener);
 		uop.adapter = newDataAdapter();
 
 		UpdateKey upkey = new UpdateKey(getDatabaseId(account), filter);
