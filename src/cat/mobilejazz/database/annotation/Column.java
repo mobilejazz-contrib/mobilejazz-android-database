@@ -53,10 +53,9 @@ public @interface Column {
 	 * entities which have a reference back to the current table. For many to
 	 * many relations there is an intermediate table (relation) that only stores
 	 * id pairs and maybe some additional information. Note that the relation
-	 * needs to have two columns, one of type {@link Type#DELEGATE_PARENT_ID}
-	 * and one of type {@link Type#DELEGATE_CHILD_ID} to indicate where to store
-	 * that information. All other information is retrieved from the parent
-	 * table.
+	 * needs to have two columns, one annotated with {@link ParentId} and one
+	 * with {@link SyncId} to indicate where to store that information. All
+	 * other information is retrieved from the parent table.
 	 */
 	String delegate() default "";
 

@@ -21,20 +21,6 @@ public class Type {
 	 */
 	public static final int DELEGATE = 8;
 
-	/**
-	 * In a relation table this indicates a column that is pointing to the
-	 * "parent" table. The parent table is the one that has a delegate column to
-	 * the "child" table. Note the id is always of type {@link long}.
-	 */
-	public static final int DELEGATE_PARENT_ID = 9;
-	/**
-	 * In a relation table this indicates a column that is pointing to the
-	 * "child" table. The child table is the one that is referenced via a
-	 * delegate column in the "parent" table. Note the id is always of type
-	 * {@link long}.
-	 */
-	public static final int DELEGATE_CHILD_ID = 10;
-
 	public static String asString(int type) {
 		switch (type) {
 		case BOOLEAN:

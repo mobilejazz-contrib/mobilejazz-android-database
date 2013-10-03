@@ -6,10 +6,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import android.content.ContentValues;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
 import cat.mobilejazz.database.annotation.CreationDate;
 import cat.mobilejazz.database.annotation.Local;
+import cat.mobilejazz.database.annotation.ParentId;
 import cat.mobilejazz.database.annotation.SyncId;
 import cat.mobilejazz.database.annotation.TableName;
 import cat.mobilejazz.database.annotation.UID;
@@ -31,6 +33,9 @@ public class Table implements TreeObject {
 	private String declaredName;
 
 	private Column syncId;
+	private Column parentId;
+	private String parentTableName;
+	private EntityContext<String> parentTableFromContext;
 	private Column creationDate;
 
 	private void setSyncIdColumn(Column c) {
@@ -47,7 +52,16 @@ public class Table implements TreeObject {
 			creationDate = c;
 		} else {
 			throw new IllegalArgumentException("Cannot set column " + c.getName()
-					+ " as creation date. There is already a creation date " + syncId.getName());
+					+ " as creation date. There is already a creation date " + creationDate.getName());
+		}
+	}
+
+	private void setParentIdColumn(Column c) {
+		if (parentId == null) {
+			parentId = c;
+		} else {
+			throw new IllegalArgumentException("Cannot set column " + c.getName()
+					+ " as parent id. There is already a parent id " + parentId.getName());
 		}
 	}
 
@@ -98,6 +112,16 @@ public class Table implements TreeObject {
 
 				if (f.getAnnotation(CreationDate.class) != null) {
 					setCreationDateColumn(c);
+				}
+
+				ParentId pid = f.getAnnotation(ParentId.class);
+				if (pid != null) {
+					setParentIdColumn(c);
+					parentTableName = pid.parentTable();
+					if (parentTableName.equals(ParentId.TABLE_FROM_CONTEXT)) {
+						parentTableName = null;
+						parentTableFromContext = pid.parentTableFromContext().newInstance();
+					}
 				}
 			}
 		}
@@ -203,7 +227,7 @@ public class Table implements TreeObject {
 	public Column getColumnSyncId() {
 		return syncId;
 	}
-	
+
 	public boolean hasColumnSyncId() {
 		return syncId != null;
 	}
@@ -217,9 +241,29 @@ public class Table implements TreeObject {
 	public Column getColumnCreationDate() {
 		return creationDate;
 	}
-	
+
 	public boolean hasColumnCreationDate() {
 		return creationDate != null;
+	}
+
+	/**
+	 * The parent id is used for relations to identify the corresponding element
+	 * in the parent relation.
+	 */
+	public Column getColumnParentId() {
+		return parentId;
+	}
+
+	public String getParentTable(ContentValues entity) {
+		if (parentTableName != null) {
+			return parentTableName;
+		} else {
+			return parentTableFromContext.get(entity);
+		}
+	}
+
+	public boolean hasColumnParentId() {
+		return parentId != null;
 	}
 
 	@Override
