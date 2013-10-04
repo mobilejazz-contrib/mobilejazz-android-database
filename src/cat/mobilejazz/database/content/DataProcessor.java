@@ -341,8 +341,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				} else {
 					// delete:
 					if (currentServerId > 0
-							&& (table.hasColumnCreationDate() || SQLUtils.getTimestamp(current, 2).before(
-									startTime))) {
+							&& (table.hasColumnCreationDate() || SQLUtils.getTimestamp(current, 2).before(startTime))) {
 						notifyUpdateListeners(Changes.ACTION_REMOVE, table.getName(), current.getLong(1));
 						mOperationsDone += mDb.delete(table.getName(), "_id = ?",
 								new String[] { String.valueOf(current.getLong(0)) });
@@ -408,7 +407,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 								// if always ALL delegate entries of a parent
 								// entity are returned by the
 								// server.
-								mDb.delete(table.getParentTable(entry.values), table.getColumnParentId().getName() + " = ?",
+								mDb.delete(table.getName(), table.getColumnParentId().getName() + " = ?",
 										new String[] { String.valueOf(currentParentId) });
 							}
 
@@ -443,8 +442,13 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 			mDepthMap.put(table, depth);
 		}
 
-		String changeIdColumn = table.getColumnSyncId().getName();
-		inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
+		final String changeIdColumn = table.getColumnSyncId().getName();
+		if (table.hasColumnParentId()) {
+			final String parentIdColumn = table.getColumnParentId().getName();
+			inserts.add(new DataEntry(data.getAsLong(parentIdColumn), data.getAsLong(changeIdColumn), data));
+		} else {
+			inserts.add(new DataEntry(data.getAsLong(changeIdColumn), data));
+		}
 
 		mAffectedTables.add(table.getName());
 	}
