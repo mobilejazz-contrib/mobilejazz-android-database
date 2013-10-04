@@ -322,7 +322,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				long currentServerId = getCurrentServerId(current);
 				DataEntry entry = i.getValue();
 
-				Debug.debug("%s: %d <--- %d", mMainTable, currentServerId, entry.serverId);
+				Debug.debug("%s: %d <--- %d", table.getName(), currentServerId, entry.serverId);
 
 				if (entry.serverId == currentServerId) {
 					// update:
