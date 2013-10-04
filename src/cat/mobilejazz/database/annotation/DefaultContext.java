@@ -1,7 +1,8 @@
 package cat.mobilejazz.database.annotation;
 
-import android.content.ContentValues;
 import cat.mobilejazz.database.EntityContext;
+
+import com.google.compatibility.gson.JsonObject;
 
 /**
  * Just a placeholder for default value in the annotation {@link ParentId}.
@@ -9,7 +10,7 @@ import cat.mobilejazz.database.EntityContext;
 class DefaultContext implements EntityContext<String> {
 
 	@Override
-	public String get(ContentValues entity) {
+	public String get(JsonObject entity) {
 		return null;
 	}
 

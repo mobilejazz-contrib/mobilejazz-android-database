@@ -1,12 +1,11 @@
 package cat.mobilejazz.database;
 
-import com.google.compatibility.gson.JsonElement;
-
 import android.text.TextUtils;
 import cat.mobilejazz.utilities.format.StringFormatter;
-import cat.mobilejazz.utilities.format.StringTemplate;
-import cat.mobilejazz.utilities.format.SymbolTable;
 import cat.mobilejazz.utilities.format.TreeObject;
+
+import com.google.compatibility.gson.JsonElement;
+import com.google.compatibility.gson.JsonObject;
 
 public class Column implements TreeObject {
 
@@ -14,9 +13,9 @@ public class Column implements TreeObject {
 	private int affinity;
 	private String constraint;
 	private String name;
-	private String[] path; 
+	private String[] path;
 	private boolean hasPath;
-	private StringTemplate delegate;
+	private EntityContext<String> delegate;
 	private int storage;
 
 	private String declaredName;
@@ -28,7 +27,7 @@ public class Column implements TreeObject {
 	private boolean isUID;
 
 	public Column(int type, int affinity, String constraint, int storage, String name, String declaredName,
-			String delegate, String defaultValue, DataParser<?> parser, boolean isUID, Table parent) {
+			EntityContext<String> delegate, String defaultValue, DataParser<?> parser, boolean isUID, Table parent) {
 		this.type = type;
 		this.affinity = affinity;
 		this.constraint = constraint;
@@ -38,9 +37,9 @@ public class Column implements TreeObject {
 		this.defaultValue = defaultValue;
 		this.parser = parser;
 		this.parent = parent;
-		this.delegate = new StringTemplate(delegate);
+		this.delegate = delegate;
 		this.isUID = isUID;
-		
+
 		this.path = this.name.split("\\$");
 		this.hasPath = path.length > 1;
 	}
@@ -76,11 +75,11 @@ public class Column implements TreeObject {
 	public String getName() {
 		return name;
 	}
-	
+
 	public String[] getPath() {
 		return path;
 	}
-	
+
 	public boolean hasPath() {
 		return hasPath;
 	}
@@ -103,13 +102,10 @@ public class Column implements TreeObject {
 
 	/**
 	 * Returns the value for the delegate table that this column points to.
-	 * 
-	 * @param values
-	 * @return
 	 */
-	public String getDelegate(SymbolTable<?> symbols) {
+	public String getDelegate(JsonObject values) {
 		if (delegate != null) {
-			return delegate.render(symbols);
+			return delegate.get(values);
 		} else {
 			return null;
 		}

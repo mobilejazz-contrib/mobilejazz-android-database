@@ -6,10 +6,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import android.content.ContentValues;
 import android.database.sqlite.SQLiteDatabase;
-import android.text.TextUtils;
 import cat.mobilejazz.database.annotation.CreationDate;
+import cat.mobilejazz.database.annotation.EntityContextHelper;
 import cat.mobilejazz.database.annotation.Local;
 import cat.mobilejazz.database.annotation.ParentId;
 import cat.mobilejazz.database.annotation.SyncId;
@@ -34,8 +33,6 @@ public class Table implements TreeObject {
 
 	private Column syncId;
 	private Column parentId;
-	private String parentTableName;
-	private EntityContext<String> parentTableFromContext;
 	private Column creationDate;
 
 	private void setSyncIdColumn(Column c) {
@@ -67,6 +64,7 @@ public class Table implements TreeObject {
 
 	public Table(Class<?> tableDescription) throws IllegalArgumentException, IllegalAccessException,
 			NoSuchFieldException, InstantiationException {
+
 		this.declaredName = tableDescription.getSimpleName();
 		columns = new HashMap<String, Column>();
 		referencedBy = new ArrayList<View>();
@@ -85,7 +83,7 @@ public class Table implements TreeObject {
 				int affinity = Affinity.INTEGER;
 				String constraint = "PRIMARY KEY";
 				int storage = Storage.LOCAL;
-				String delegate = "";
+				EntityContext<String> delegate = null;
 				DataParser<?> parser = null;
 				String defaultValue = "";
 				if (column != null) {
@@ -93,9 +91,9 @@ public class Table implements TreeObject {
 					affinity = column.affinity();
 					constraint = column.constraint();
 					storage = column.storage();
-					delegate = column.delegate();
+					delegate = EntityContextHelper.getFromAnnotation(column.delegate(), column.delegateFromContext());
 					defaultValue = column.defaultValue();
-					if (!TextUtils.isEmpty(delegate)) {
+					if (delegate != null) {
 						type = Type.DELEGATE;
 					}
 					if (!column.parser().equals(IdentityParser.class)) {
@@ -117,11 +115,6 @@ public class Table implements TreeObject {
 				ParentId pid = f.getAnnotation(ParentId.class);
 				if (pid != null) {
 					setParentIdColumn(c);
-					parentTableName = pid.parentTable();
-					if (parentTableName.equals(ParentId.TABLE_FROM_CONTEXT)) {
-						parentTableName = null;
-						parentTableFromContext = pid.parentTableFromContext().newInstance();
-					}
 				}
 			}
 		}
@@ -252,14 +245,6 @@ public class Table implements TreeObject {
 	 */
 	public Column getColumnParentId() {
 		return parentId;
-	}
-
-	public String getParentTable(ContentValues entity) {
-		if (parentTableName != null) {
-			return parentTableName;
-		} else {
-			return parentTableFromContext.get(entity);
-		}
 	}
 
 	public boolean hasColumnParentId() {
