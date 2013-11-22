@@ -418,6 +418,10 @@ public abstract class DataProvider extends ContentProvider {
 			if (json == null) {
 				JSONObject obj = renderValues(values, table, Storage.REMOTE);
 				json = obj.toString();
+				if ((json.equals("{}")) && (action == Changes.ACTION_REMOVE)) {
+					obj = renderValues(values, table, Storage.LOCAL);
+					json = obj.toString();
+				}
 			}
 
 			ContentValues changes = new ContentValues();
@@ -512,7 +516,7 @@ public abstract class DataProvider extends ContentProvider {
 			if (resolvedUri.id != null) {
 				insertSingleChange(db, action, resolvedUri.id, resolvedUri, values);
 			} else if (action == Changes.ACTION_REMOVE) {
-				insertSingleChange(db, action, 0, resolvedUri, values);
+				insertRemoveChange(action, db, resolvedUri, selection, selectionArgs);
 			} else {
 				Cursor cursor = query(uri, new String[] { getChangeIdColumn(resolvedUri.table) }, selection,
 						selectionArgs, null);
@@ -528,6 +532,36 @@ public abstract class DataProvider extends ContentProvider {
 				}
 			}
 		}
+	}
+
+	private void insertRemoveChange(int action, SQLiteDatabase db, ResolvedUri resolvedUri, String selection, String[] selectionArgs) {
+		if (hasMultipleConditions(selectionArgs)) {
+			// TODO There's no case of user for that at this point in time
+		} else {
+			ContentValues values = parseQueryConditionsIntoValues(selection);
+			insertSingleChange(db, action, 0, resolvedUri, values);
+		}
+	}
+
+	private ContentValues parseQueryConditionsIntoValues(String selection) {
+		ContentValues values = new ContentValues();
+		String[] conditions = selection.split(" AND ");
+		for (String condition : conditions) {
+			String[] keyValue = condition.split("=");
+			removeQuotesInCaseOfString(keyValue);
+			values.put(keyValue[0], keyValue[1]);
+		}
+		return values;
+	}
+
+	private void removeQuotesInCaseOfString(String[] keyValue) {
+		if (keyValue[1].indexOf("'") > -1) {
+			keyValue[1] = keyValue[1].substring(1,keyValue[1].length() - 1);
+		}
+	}
+
+	private boolean hasMultipleConditions(String[] selectionArgs) {
+		return (selectionArgs != null) || ("".equals(selectionArgs));
 	}
 
 	@Override
