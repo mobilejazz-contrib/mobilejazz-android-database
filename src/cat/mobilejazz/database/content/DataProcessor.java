@@ -28,7 +28,6 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.provider.BaseColumns;
 import cat.mobilejazz.database.ProgressListener;
-import cat.mobilejazz.database.SQLUtils;
 import cat.mobilejazz.database.Table;
 import cat.mobilejazz.database.content.DataAdapter.DataAdapterListener;
 import cat.mobilejazz.database.content.DataProvider.ResolvedUri;
@@ -341,7 +340,7 @@ public class DataProcessor implements DataAdapterListener, ChangesListener {
 				} else {
 					// delete:
 					if (currentServerId > 0
-							&& (table.hasColumnCreationDate() || SQLUtils.getTimestamp(current, 2).before(startTime))) {
+							&& (table.hasColumnCreationDate())) {
 						notifyUpdateListeners(Changes.ACTION_REMOVE, table.getName(), current.getLong(1));
 						mOperationsDone += mDb.delete(table.getName(), "_id = ?",
 								new String[] { String.valueOf(current.getLong(0)) });
